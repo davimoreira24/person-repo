@@ -65,7 +65,12 @@ export async function createPlayerAction(formData: FormData) {
     photoUrl = publicUrlData.publicUrl;
   }
 
+  const [{ nextId }] = await db
+    .select({ nextId: sql<number>`COALESCE(MAX(${players.id}), 0) + 1` })
+    .from(players);
+
   await db.insert(players).values({
+    id: nextId ?? 1,
     name: parsed.data.name,
     score: parsed.data.score,
     photoUrl,
