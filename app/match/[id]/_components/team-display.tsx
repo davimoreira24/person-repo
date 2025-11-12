@@ -25,6 +25,24 @@ const cardVariants = {
   },
 };
 
+type RoleKey = "top" | "jungle" | "mid" | "adc" | "sup";
+
+const ROLE_ORDER: RoleKey[] = ["top", "jungle", "mid", "adc", "sup"];
+
+const ROLE_INFO: Record<
+  RoleKey,
+  {
+    label: string;
+    icon: string;
+  }
+> = {
+  top: { label: "Topo", icon: "/top.png" },
+  jungle: { label: "Selva", icon: "/jungle.png" },
+  mid: { label: "Meio", icon: "/mid.png" },
+  adc: { label: "Atirador", icon: "/adc.png" },
+  sup: { label: "Suporte", icon: "/sup.png" },
+};
+
 interface LolPlayerCardProps {
   player: MatchTeamPlayer;
   team: 1 | 2;
@@ -46,6 +64,8 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
     : isBlueSide
     ? "shadow-[0_0_25px_rgba(79,114,255,0.55)]"
     : "shadow-[0_0_25px_rgba(255,101,90,0.55)]";
+  const role = ROLE_ORDER[index] ?? null;
+  const roleInfo = role ? ROLE_INFO[role] : null;
 
   return (
     <motion.div
@@ -66,6 +86,18 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
         {player.isDud && (
           <div className="absolute left-3 top-3 z-20 flex items-center gap-1 rounded-full border border-red-400/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-red-100 shadow-[0_0_12px_rgba(255,80,80,0.45)]">
             Pior
+          </div>
+        )}
+        {roleInfo && (
+          <div className="absolute right-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[10px] uppercase tracking-[0.35em] text-white/70 backdrop-blur-sm">
+            <Image
+              src={roleInfo.icon}
+              alt={roleInfo.label}
+              width={18}
+              height={18}
+              className="h-[18px] w-[18px] object-contain"
+            />
+            <span className="hidden sm:inline">{roleInfo.label}</span>
           </div>
         )}
         {player.photoUrl ? (

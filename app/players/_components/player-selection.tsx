@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlayerCard } from "./player-card";
+import { PlayerForm } from "./player-form";
 
 interface PlayerSelectionProps {
   players: Player[];
@@ -24,8 +25,10 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [scoreDraft, setScoreDraft] = useState<string>("0");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const canSelectMore = selected.length < 10;
+  const hasPlayers = players.length > 0;
 
   const handleToggle = (playerId: number) => {
     setErrorMessage(null);
@@ -108,8 +111,8 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
           <span className="text-xs uppercase tracking-[0.35em] text-white/60">
             Seleção de jogadores
@@ -119,27 +122,45 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
             Escolha dez jogadores para formar dois times balanceados. O sorteio
             será feito automaticamente com efeitos cinematográficos.
           </p>
+          {!hasPlayers && (
+            <p className="text-sm text-white/50">
+              Ainda não há jogadores cadastrados. Adicione novos invocadores para começar.
+            </p>
+          )}
         </div>
-        <div className="w-full max-w-sm">
+        <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
           <Input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Buscar jogador..."
             className="bg-white/5 text-sm text-white placeholder:text-white/40"
           />
+          <Button
+            type="button"
+            variant="secondary"
+            className="whitespace-nowrap"
+            onClick={() => setIsCreateModalOpen(true)}
+          >
+            Novo jogador
+          </Button>
         </div>
       </header>
 
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm uppercase tracking-[0.25em] text-primary">
-            {selected.length} / 10 jogadores
-          </span>
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
+            <span className="text-sm uppercase tracking-[0.25em] text-primary">
+              {selected.length} / 10 jogadores
+            </span>
+            <span className="text-xs text-white/50">
+              Selecione exatamente dez jogadores para habilitar o sorteio.
+            </span>
+          </div>
           <Button
             type="button"
             onClick={onSubmitMatch}
             disabled={isPending || selected.length !== 10}
-            variant="secondary"
+            className="w-full max-w-[180px]"
           >
             {isPending ? "Sorteando..." : "Jogar"}
           </Button>
@@ -230,6 +251,41 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
                   </Button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="relative w-full max-w-xl rounded-3xl border border-white/10 bg-neutral/95 p-8 shadow-[0_0_60px_rgba(9,14,24,0.65)]"
+            >
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="absolute right-4 top-4 rounded-full border border-white/10 bg-white/10 p-2 text-white/60 transition hover:border-white/40 hover:text-white/90"
+                aria-label="Fechar modal de novo jogador"
+              >
+                ✕
+              </button>
+              <PlayerForm
+                layout="modal"
+                onCancel={() => setIsCreateModalOpen(false)}
+                onSuccess={() => {
+                  setIsCreateModalOpen(false);
+                  router.refresh();
+                }}
+              />
             </motion.div>
           </motion.div>
         )}

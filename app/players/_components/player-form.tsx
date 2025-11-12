@@ -32,7 +32,17 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function PlayerForm() {
+interface PlayerFormProps {
+  layout?: "card" | "modal";
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+export function PlayerForm({
+  layout = "card",
+  onSuccess,
+  onCancel,
+}: PlayerFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +63,11 @@ export function PlayerForm() {
 
   const photoWatch = watch("photo");
   const previewUrl = useMemo(() => {
-    if (!photoWatch || !(photoWatch instanceof FileList) || photoWatch.length === 0) {
+    if (
+      !photoWatch ||
+      !(photoWatch instanceof FileList) ||
+      photoWatch.length === 0
+    ) {
       return null;
     }
     return URL.createObjectURL(photoWatch[0]);
@@ -82,6 +96,7 @@ export function PlayerForm() {
         await createPlayerAction(formData);
         reset();
         router.refresh();
+        onSuccess?.();
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Erro ao criar jogador.",
@@ -90,8 +105,12 @@ export function PlayerForm() {
     });
   };
 
+  const containerClass = layout === "card"
+    ? "glass-panel sticky top-8 flex flex-col gap-6 p-6"
+    : "flex flex-col gap-6";
+
   return (
-    <div className="glass-panel sticky top-8 flex flex-col gap-6 p-6">
+    <div className={containerClass}>
       <header className="flex flex-col gap-2">
         <span className="text-xs uppercase tracking-[0.45em] text-white/50">
           Novo jogador
@@ -157,9 +176,20 @@ export function PlayerForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Adicionando..." : "Salvar jogador"}
-        </Button>
+        {onCancel ? (
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? "Adicionando..." : "Salvar jogador"}
+            </Button>
+          </div>
+        ) : (
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Adicionando..." : "Salvar jogador"}
+          </Button>
+        )}
       </form>
     </div>
   );
