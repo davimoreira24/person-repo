@@ -11,6 +11,8 @@ interface PlayerCardProps {
   disabled?: boolean;
   onToggle: (playerId: number) => void;
   onEditScore: (player: Player) => void;
+  variant?: "grid" | "modal";
+  highlight?: "gold" | "silver" | "bronze" | null;
 }
 
 export function PlayerCard({
@@ -19,7 +21,18 @@ export function PlayerCard({
   disabled,
   onToggle,
   onEditScore,
+  variant = "grid",
+  highlight = null,
 }: PlayerCardProps) {
+  const highlightClasses =
+    highlight === "gold"
+      ? "border-[#E6C357] shadow-[0_0_35px_rgba(230,195,87,0.6)]"
+      : highlight === "silver"
+        ? "border-[#C0C6D8] shadow-[0_0_30px_rgba(192,198,216,0.45)]"
+        : highlight === "bronze"
+          ? "border-[#D19063] shadow-[0_0_28px_rgba(209,144,99,0.45)]"
+          : null;
+
   return (
     <motion.div
       layout
@@ -28,7 +41,9 @@ export function PlayerCard({
       transition={{ duration: 0.35 }}
       className={cn(
         "flex min-w-[260px] flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 transition-all hover:border-accent/60 hover:shadow-glow sm:min-w-[300px]",
+        variant === "modal" && "min-w-0 sm:min-w-0 bg-black/30",
         isSelected && "border-accent/80 bg-accent/10 shadow-glow",
+        highlightClasses,
       )}
     >
       <div className="flex items-center gap-4">

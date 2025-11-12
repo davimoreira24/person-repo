@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { matchAwards, matchPlayers, matches, players } from "@/lib/db/schema";
 import { playerBucket, supabaseAdmin } from "@/lib/supabase/server";
-import { eq, inArray, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
@@ -248,4 +248,67 @@ export async function completeMatchAction(input: unknown) {
 
   revalidatePath("/players");
   revalidatePath(`/match/${matchId}`);
+
+  const ranking = await db
+    .select({
+      id: players.id,
+      name: players.name,
+      score: players.score,
+      photoUrl: players.photoUrl,
+    })
+    .from(players)
+    .orderBy(desc(players.score), asc(players.name));
+
+  return {
+    ranking,
+    winnerTeam,
+    winnerPlayerIds: winners,
+    loserPlayerIds: losers,
+    mvpPlayerId,
+    dudPlayerId,
+  };
+}
+
+export async function replayMatchAction(matchId: number) {
+  const existingMatch = await db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+
+  if (existingMatch.length === 0) {
+    throw new Error("Partida não encontrada para re-jogar.");
+  }
+
+  const playerRows = await db
+    .select({ playerId: matchPlayers.playerId })
+    .from(matchPlayers)
+    .where(eq(matchPlayers.matchId, matchId));
+
+  if (playerRows.length !== 10) {
+    throw new Error("Partida anterior não possui 10 jogadores cadastrados.");
+  }
+
+  const playerIds = playerRows.map((row) => row.playerId);
+  const shuffled = shuffle(playerIds);
+  const teamOne = shuffled.slice(0, 5);
+  const teamTwo = shuffled.slice(5, 10);
+
+  const [newMatch] = await db
+    .insert(matches)
+    .values({})
+    .returning({ id: matches.id });
+
+  const entries = [...teamOne, ...teamTwo].map((playerId, index) => ({
+    matchId: newMatch.id,
+    playerId,
+    team: index < 5 ? 1 : 2,
+  }));
+
+  await db.insert(matchPlayers).values(entries);
+
+  revalidatePath(`/match/${newMatch.id}`);
+  revalidatePath("/players");
+
+  return { matchId: newMatch.id };
 }
