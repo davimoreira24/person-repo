@@ -27,14 +27,14 @@ export function PlayerCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
       className={cn(
-        "flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition-all hover:border-accent/60 hover:shadow-glow",
+        "flex min-w-[260px] flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-5 transition-all hover:border-accent/60 hover:shadow-glow sm:min-w-[300px]",
         isSelected && "border-accent/80 bg-accent/10 shadow-glow",
       )}
     >
       <div className="flex items-center gap-4">
         <Avatar src={player.photoUrl ?? undefined} alt={player.name} size="md" />
         <div className="flex flex-1 flex-col">
-          <span className="font-semibold uppercase tracking-wide text-white/80">
+          <span className="font-semibold uppercase tracking-wide text-white/80 break-words">
             {player.name}
           </span>
           <span className="text-xs text-white/50">

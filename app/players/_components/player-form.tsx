@@ -16,10 +16,17 @@ const schema = z.object({
     .string()
     .min(2, "Informe pelo menos 2 caracteres")
     .max(60, "Máximo de 60 caracteres"),
-  score: z.coerce.number().min(0, "Use valores positivos").default(0),
+  score: z.coerce.number().min(0, "Use valores positivos"),
   photo: z
-    .any()
-    .refine((value) => value instanceof FileList, "Arquivo inválido")
+    .custom<FileList | undefined>((value) => {
+      if (value === undefined || value === null) {
+        return true;
+      }
+      if (typeof FileList === "undefined") {
+        return true;
+      }
+      return value instanceof FileList;
+    }, "Arquivo inválido")
     .optional(),
 });
 

@@ -14,9 +14,8 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "LoL Team Picker",
-  description:
-    "Monte partidas personalizadas de League of Legends com estilo e estatísticas sincronizadas via Supabase.",
+  title: "Person dos crias ",
+  description: "Monte partidas personalizadas de League of Legends com estilo",
 };
 
 export default function RootLayout({

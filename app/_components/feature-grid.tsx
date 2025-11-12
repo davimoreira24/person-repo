@@ -9,19 +9,14 @@ const features = [
       "Organize listas de jogadores, faça upload de fotos, personalize pontuações e monte partidas equilibradas com apenas um clique.",
   },
   {
-    title: "Persistência Supabase + Drizzle",
+    title: "Aqui é anti-amuletos",
     description:
-      "Armazene jogadores, partidas e estatísticas em tabelas tipadas e escaláveis com Drizzle ORM e Supabase Storage.",
+      "Caso um jogador comece a trollar muitas partidas, o sistema automaticamente balanceará com outros jogadores",
   },
   {
-    title: "Visual eSports",
+    title: "Votação automática",
     description:
-      "Interface escura, tipografia dramática e elementos brilhantes inspirados em League of Legends mantendo acessibilidade.",
-  },
-  {
-    title: "Animações Framer Motion",
-    description:
-      "Transições suaves entre telas, entrada animada de cards e efeitos sutis para reforçar a emoção de cada partida.",
+      "Ao final de cada partida, os jogadores poderão votar no MVP e no Animal da partida, o sistema automaticamente balanceará com outros jogadores",
   },
 ];
 
@@ -56,4 +51,3 @@ export function FeatureGrid() {
     </motion.div>
   );
 }
-

@@ -23,6 +23,7 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [scoreDraft, setScoreDraft] = useState<string>("0");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const canSelectMore = selected.length < 10;
 
@@ -43,6 +44,16 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
     () => players.filter((player) => selected.includes(player.id)),
     [players, selected],
   );
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredPlayers = useMemo(() => {
+    if (!normalizedSearch) {
+      return players;
+    }
+    return players.filter((player) =>
+      player.name.toLowerCase().includes(normalizedSearch),
+    );
+  }, [players, normalizedSearch]);
 
   const onSubmitMatch = () => {
     setErrorMessage(null);
@@ -98,15 +109,25 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <span className="text-xs uppercase tracking-[0.35em] text-white/60">
-          Seleção de jogadores
-        </span>
-        <h2 className="font-display text-3xl text-white">Monte sua lobby</h2>
-        <p className="text-sm text-white/65">
-          Escolha dez jogadores para formar dois times balanceados. O sorteio
-          será feito automaticamente com efeitos cinematográficos.
-        </p>
+      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.35em] text-white/60">
+            Seleção de jogadores
+          </span>
+          <h2 className="font-display text-3xl text-white">Monte sua lobby</h2>
+          <p className="text-sm text-white/65">
+            Escolha dez jogadores para formar dois times balanceados. O sorteio
+            será feito automaticamente com efeitos cinematográficos.
+          </p>
+        </div>
+        <div className="w-full max-w-sm">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar jogador..."
+            className="bg-white/5 text-sm text-white placeholder:text-white/40"
+          />
+        </div>
       </header>
 
       <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -149,16 +170,22 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
         className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
         transition={{ layout: { duration: 0.35, ease: "easeInOut" } }}
       >
-        {players.map((player) => (
-          <PlayerCard
-            key={player.id}
-            player={player}
-            isSelected={selected.includes(player.id)}
-            disabled={!selected.includes(player.id) && !canSelectMore}
-            onToggle={handleToggle}
-            onEditScore={openScoreEditor}
-          />
-        ))}
+        {filteredPlayers.length > 0 ? (
+          filteredPlayers.map((player) => (
+            <PlayerCard
+              key={player.id}
+              player={player}
+              isSelected={selected.includes(player.id)}
+              disabled={!selected.includes(player.id) && !canSelectMore}
+              onToggle={handleToggle}
+              onEditScore={openScoreEditor}
+            />
+          ))
+        ) : (
+          <div className="col-span-full rounded-2xl border border-white/10 bg-black/30 p-6 text-center text-sm text-white/50">
+            Nenhum jogador encontrado para &ldquo;{searchTerm}&rdquo;.
+          </div>
+        )}
       </motion.div>
 
       <AnimatePresence>

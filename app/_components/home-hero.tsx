@@ -13,7 +13,7 @@ export function HomeHero() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
       >
-        LoL Team Picker
+        Person dos crias
       </motion.div>
 
       <motion.h1
@@ -26,17 +26,6 @@ export function HomeHero() {
         real.
       </motion.h1>
 
-      <motion.p
-        className="max-w-2xl text-base text-white/70 md:text-lg"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.7, ease: "easeOut" }}
-      >
-        Organize amistosos ou campeonatos customizados e registre resultados,
-        fotos e pontuações direto no Supabase. Tudo com animações suaves do
-        Framer Motion e um visual inspirado no universo de League of Legends.
-      </motion.p>
-
       <div className="flex flex-col gap-4 md:flex-row">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -44,7 +33,7 @@ export function HomeHero() {
           transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
         >
           <Button asChild>
-            <Link href="/players">Iniciar seleção</Link>
+            <Link href="/players">Iniciar</Link>
           </Button>
         </motion.div>
         <motion.div
@@ -52,12 +41,11 @@ export function HomeHero() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.35, duration: 0.5, ease: "easeOut" }}
         >
-          <Button variant="ghost" asChild>
+          {/* <Button variant="ghost" asChild>
             <Link href="#features">Ver funcionalidades</Link>
-          </Button>
+          </Button> */}
         </motion.div>
       </div>
     </div>
   );
 }
-

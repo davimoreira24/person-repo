@@ -1,4 +1,8 @@
 /** @type {import('next').NextConfig} */
+const supabaseHostname = process.env.SUPABASE_URL
+  ? new URL(process.env.SUPABASE_URL).hostname
+  : undefined;
+
 const nextConfig = {
   experimental: {
     serverActions: {
@@ -11,6 +15,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "picsum.photos",
       },
+      ...(supabaseHostname
+        ? [
+            {
+              protocol: "https",
+              hostname: supabaseHostname,
+            },
+          ]
+        : []),
     ],
   },
 };
