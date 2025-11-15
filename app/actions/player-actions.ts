@@ -98,10 +98,24 @@ export async function updatePlayerScoreAction(input: unknown) {
   });
 }
 
-function shuffle<T>(items: T[]) {
+function shuffle<T>(items: T[]): T[] {
   const arr = [...items];
+
   for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    // Generate a fresh random value for each iteration
+    const randomBuffer = new Uint32Array(1);
+    crypto.getRandomValues(randomBuffer);
+    // Use modulo bias-free method: reject and retry if needed
+    const max = Math.floor(0xffffffff / (i + 1)) * (i + 1);
+    let randomValue = randomBuffer[0];
+
+    // Rejection sampling to avoid modulo bias
+    while (randomValue >= max) {
+      crypto.getRandomValues(randomBuffer);
+      randomValue = randomBuffer[0];
+    }
+
+    const j = randomValue % (i + 1);
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
@@ -115,25 +129,31 @@ export async function createMatchAction(input: unknown) {
   }
 
   const shuffled = shuffle(parsed.data.playerIds);
-  const teamOne = shuffled.slice(0, 5);
-  const teamTwo = shuffled.slice(5, 10);
+  const teamOneShuffled = shuffle(shuffled.slice(0, 5));
+  const teamTwoShuffled = shuffle(shuffled.slice(5, 10));
 
   const [match] = await db
     .insert(matches)
     .values({})
     .returning({ id: matches.id });
 
-  const entries = [...teamOne, ...teamTwo].map((playerId, index) => ({
-    matchId: match.id,
-    playerId,
-    team: index < 5 ? 1 : 2,
-  }));
+  const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
+    (playerId, index) => ({
+      matchId: match.id,
+      playerId,
+      team: index < 5 ? 1 : 2,
+    })
+  );
 
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${match.id}`);
 
-  return { matchId: match.id, teamOne, teamTwo };
+  return {
+    matchId: match.id,
+    teamOne: teamOneShuffled,
+    teamTwo: teamTwoShuffled,
+  };
 }
 
 export async function completeMatchAction(input: unknown) {
@@ -291,19 +311,21 @@ export async function replayMatchAction(matchId: number) {
 
   const playerIds = playerRows.map((row) => row.playerId);
   const shuffled = shuffle(playerIds);
-  const teamOne = shuffled.slice(0, 5);
-  const teamTwo = shuffled.slice(5, 10);
+  const teamOneShuffled = shuffle(shuffled.slice(0, 5));
+  const teamTwoShuffled = shuffle(shuffled.slice(5, 10));
 
   const [newMatch] = await db
     .insert(matches)
     .values({})
     .returning({ id: matches.id });
 
-  const entries = [...teamOne, ...teamTwo].map((playerId, index) => ({
-    matchId: newMatch.id,
-    playerId,
-    team: index < 5 ? 1 : 2,
-  }));
+  const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
+    (playerId, index) => ({
+      matchId: newMatch.id,
+      playerId,
+      team: index < 5 ? 1 : 2,
+    })
+  );
 
   await db.insert(matchPlayers).values(entries);
 

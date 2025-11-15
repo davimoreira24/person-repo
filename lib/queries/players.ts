@@ -54,12 +54,13 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       photoUrl: players.photoUrl,
       score: players.score,
       team: matchPlayers.team,
+      matchPlayerId: matchPlayers.id,
     })
     .from(matches)
     .leftJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
     .leftJoin(players, eq(matchPlayers.playerId, players.id))
     .where(eq(matches.id, matchId))
-    .orderBy(asc(matchPlayers.team), asc(players.name));
+    .orderBy(asc(matchPlayers.id));
 
   if (matchRows.length === 0) {
     return null;
