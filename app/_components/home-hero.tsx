@@ -41,9 +41,9 @@ export function HomeHero() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.35, duration: 0.5, ease: "easeOut" }}
         >
-          {/* <Button variant="ghost" asChild>
-            <Link href="#features">Ver funcionalidades</Link>
-          </Button> */}
+          <Button variant="outline" asChild>
+            <Link href="/ranking">Ver Ranking</Link>
+          </Button>
         </motion.div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Player } from "@/lib/db/schema";
 import {
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlayerCard } from "./player-card";
 import { PlayerForm } from "./player-form";
+import { Trophy } from "lucide-react";
 
 interface PlayerSelectionProps {
   players: Player[];
@@ -135,6 +137,17 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
             placeholder="Buscar jogador..."
             className="bg-white/5 text-sm text-white placeholder:text-white/40"
           />
+          <Button
+            type="button"
+            variant="outline"
+            className="whitespace-nowrap"
+            asChild
+          >
+            <Link href="/ranking">
+              <Trophy className="h-4 w-4" />
+              Ranking
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="secondary"

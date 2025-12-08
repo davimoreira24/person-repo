@@ -4,10 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { completeMatchAction } from "@/app/actions/player-actions";
+import { createVotingSessionAction } from "@/app/actions/voting-actions";
 import { Button } from "@/components/ui/button";
 import type { MatchWithTeams } from "@/lib/queries/players";
+import { Users, Vote } from "lucide-react";
 
-type Step = "winner" | "mvp" | "dud" | "summary";
+type Step = "mode" | "winner" | "mvp" | "dud" | "summary";
+type CompletionMode = "normal" | "voting" | null;
 
 interface CompleteMatchDialogProps {
   match: MatchWithTeams;
@@ -16,7 +19,8 @@ interface CompleteMatchDialogProps {
 export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>("winner");
+  const [step, setStep] = useState<Step>("mode");
+  const [mode, setMode] = useState<CompletionMode>(null);
   const [winnerTeam, setWinnerTeam] = useState<1 | 2 | null>(null);
   const [mvpPlayerId, setMvpPlayerId] = useState<number | null>(null);
   const [dudPlayerId, setDudPlayerId] = useState<number | null>(null);
@@ -34,7 +38,8 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
   );
 
   const resetState = () => {
-    setStep("winner");
+    setStep("mode");
+    setMode(null);
     setWinnerTeam(null);
     setMvpPlayerId(null);
     setDudPlayerId(null);
@@ -52,9 +57,48 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
     setOpen(true);
   };
 
+  const handleModeSelect = (selectedMode: "normal" | "voting") => {
+    setMode(selectedMode);
+    if (selectedMode === "normal") {
+      setStep("winner");
+    } else {
+      setStep("winner"); // For voting mode, we also need to select winner first
+    }
+    setErrorMessage(null);
+  };
+
   const handleWinnerSelect = (team: 1 | 2) => {
     setWinnerTeam(team);
-    setStep("mvp");
+    
+    if (mode === "voting") {
+      // Create voting session and show link
+      startTransition(async () => {
+        try {
+          const result = await createVotingSessionAction({
+            matchId: match.id,
+            winnerTeam: team,
+          });
+          
+          const votingUrl = `${window.location.origin}/voting/${result.sessionId}`;
+          
+          // Show voting link in a new step
+          setStep("summary");
+          setErrorMessage(null);
+          
+          // Store voting URL temporarily
+          (window as any).votingUrl = votingUrl;
+        } catch (error) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Erro ao criar sessão de votação"
+          );
+        }
+      });
+    } else {
+      setStep("mvp");
+    }
+    
     setErrorMessage(null);
   };
 
@@ -71,7 +115,7 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
   };
 
   const handleBack = () => {
-    if (step === "summary") {
+    if (step === "summary" && mode === "normal") {
       setStep("dud");
       return;
     }
@@ -84,6 +128,11 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
       setMvpPlayerId(null);
       setWinnerTeam(null);
       setStep("winner");
+      return;
+    }
+    if (step === "winner") {
+      setWinnerTeam(null);
+      setStep("mode");
       return;
     }
     closeDialog();
@@ -117,10 +166,19 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
   };
 
   const stepTitle: Record<Step, string> = {
+    mode: "Escolha o modo de finalização",
     winner: "Selecione o time vencedor",
     mvp: "Escolha o MVP do time vencedor",
     dud: "Escolha o pior do time perdedor",
-    summary: "Confirme o resultado",
+    summary: mode === "voting" ? "Link de votação gerado!" : "Confirme o resultado",
+  };
+
+  const copyVotingLink = () => {
+    const url = (window as any).votingUrl;
+    if (url) {
+      navigator.clipboard.writeText(url);
+      alert("Link copiado para a área de transferência!");
+    }
   };
 
   const StepBadge = ({ label, active }: { label: string; active: boolean }) => (
@@ -188,6 +246,52 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
               </div>
 
               <div className="mt-6 space-y-4">
+                {step === "mode" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <motion.button
+                      type="button"
+                      onClick={() => handleModeSelect("normal")}
+                      className="group flex flex-col gap-4 rounded-2xl border border-white/15 bg-gradient-to-br from-white/5 to-white/[0.02] p-6 text-left transition-all hover:border-primary/70 hover:shadow-glow"
+                      whileHover={{ scale: 1.02, y: -4 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 transition-all group-hover:bg-primary/20">
+                        <Users className="h-7 w-7 text-primary" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <h4 className="font-display text-lg font-semibold text-white">
+                          Modo Normal
+                        </h4>
+                        <p className="text-sm leading-relaxed text-white/60">
+                          Você escolhe o vencedor, MVP e pior jogador imediatamente.
+                          A partida é finalizada na hora.
+                        </p>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      onClick={() => handleModeSelect("voting")}
+                      className="group flex flex-col gap-4 rounded-2xl border border-white/15 bg-gradient-to-br from-purple-500/5 to-blue-500/5 p-6 text-left transition-all hover:border-purple-400/70 hover:shadow-[0_0_35px_rgba(168,85,247,0.4)]"
+                      whileHover={{ scale: 1.02, y: -4 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-purple-500/10 transition-all group-hover:bg-purple-500/20">
+                        <Vote className="h-7 w-7 text-purple-400" />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <h4 className="font-display text-lg font-semibold text-white">
+                          Modo Votação
+                        </h4>
+                        <p className="text-sm leading-relaxed text-white/60">
+                          Gera um link de votação anônima. Todos os jogadores
+                          votam no MVP e pior jogador em tempo real.
+                        </p>
+                      </div>
+                    </motion.button>
+                  </div>
+                )}
+
                 {step === "winner" && (
                   <div className="grid gap-4 md:grid-cols-2">
                     {[1, 2].map((team) => (
@@ -323,7 +427,53 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
                   </div>
                 )}
 
+                {step === "summary" && mode === "voting" && winnerTeam && (
+                  <div className="space-y-4 rounded-2xl border border-purple-400/30 bg-purple-500/10 p-6">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
+                        <Vote className="h-6 w-6 text-purple-400" />
+                      </div>
+                      <div className="flex flex-col">
+                        <h4 className="font-semibold text-white">
+                          Votação ativa!
+                        </h4>
+                        <p className="text-sm text-white/60">
+                          Time {winnerTeam} venceu
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-sm text-white/70">
+                        Compartilhe este link com os jogadores para votarem no MVP e pior jogador:
+                      </p>
+                      
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={(window as any).votingUrl || "Gerando..."}
+                          className="flex-1 rounded-lg border border-white/20 bg-black/30 px-4 py-2 text-sm text-white"
+                        />
+                        <Button
+                          onClick={copyVotingLink}
+                          variant="secondary"
+                          className="shrink-0"
+                        >
+                          Copiar
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-white/50">
+                        Os votos aparecerão em tempo real. Você pode finalizar a votação
+                        manualmente na página de votação.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {step === "summary" &&
+                  mode === "normal" &&
                   winnerTeam &&
                   loserTeam &&
                   mvpPlayerId &&
@@ -374,18 +524,28 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
               </div>
 
               <div className="mt-6 flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  onClick={handleBack}
-                  disabled={isPending}
-                >
-                  Voltar
-                </Button>
-                {step === "summary" ? (
+                {step !== "summary" || mode === "normal" ? (
+                  <Button
+                    variant="ghost"
+                    onClick={handleBack}
+                    disabled={isPending}
+                  >
+                    Voltar
+                  </Button>
+                ) : null}
+
+                {step === "summary" && mode === "voting" ? (
+                  <Button
+                    onClick={closeDialog}
+                    className="ml-auto"
+                  >
+                    Fechar
+                  </Button>
+                ) : step === "summary" && mode === "normal" ? (
                   <Button onClick={handleConfirm} disabled={isPending}>
                     {isPending ? "Finalizando..." : "Confirmar resultado"}
                   </Button>
-                ) : (
+                ) : step !== "mode" ? (
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -407,7 +567,7 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
                   >
                     Continuar
                   </Button>
-                )}
+                ) : null}
               </div>
             </motion.div>
           </motion.div>
