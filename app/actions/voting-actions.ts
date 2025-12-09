@@ -236,6 +236,8 @@ export async function finalizeVotingAction(votingSessionId: string) {
 
   revalidatePath(`/match/${session.matchId}`);
   revalidatePath(`/voting/${votingSessionId}`);
+  revalidatePath("/players");
+  revalidatePath("/ranking");
 
   return { matchId: session.matchId, mvpPlayerId, dudPlayerId };
 }

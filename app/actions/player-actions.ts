@@ -77,6 +77,7 @@ export async function createPlayerAction(formData: FormData) {
   });
 
   revalidatePath("/players");
+  revalidatePath("/ranking");
 }
 
 export async function updatePlayerScoreAction(input: unknown) {
@@ -92,7 +93,7 @@ export async function updatePlayerScoreAction(input: unknown) {
     .where(eq(players.id, parsed.data.playerId));
 
   const paths = parsed.data.revalidatePaths ?? [];
-  const unique = Array.from(new Set(["/players", ...paths]));
+  const unique = Array.from(new Set(["/players", "/ranking", ...paths]));
   unique.forEach((path) => {
     revalidatePath(path);
   });
@@ -268,6 +269,7 @@ export async function completeMatchAction(input: unknown) {
 
   revalidatePath("/players");
   revalidatePath(`/match/${matchId}`);
+  revalidatePath("/ranking");
 
   const ranking = await db
     .select({

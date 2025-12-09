@@ -11,3 +11,4 @@ export const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+
