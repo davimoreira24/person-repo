@@ -4,10 +4,21 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { Player } from "@/lib/db/schema";
-import { Trophy, Medal, Award, TrendingUp } from "lucide-react";
+import type { PlayerCareerStats } from "@/lib/queries/players";
+import {
+  Trophy,
+  Medal,
+  Award,
+  TrendingUp,
+  TrendingDown,
+  Star,
+  Frown,
+} from "lucide-react";
+
+export type RankingListPlayer = Player & { careerStats: PlayerCareerStats };
 
 interface RankingListProps {
-  players: Player[];
+  players: RankingListPlayer[];
 }
 
 function getInitials(name: string) {
@@ -66,7 +77,7 @@ function getRankStyles(position: number) {
 }
 
 interface PlayerCardModalProps {
-  player: Player;
+  player: RankingListPlayer;
   position: number;
   onClose: () => void;
 }
@@ -74,6 +85,7 @@ interface PlayerCardModalProps {
 function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
   const styles = getRankStyles(position);
   const isTopThree = position <= 3;
+  const { wins, losses, mvpCount, dudCount } = player.careerStats;
 
   return (
     <motion.div
@@ -89,7 +101,7 @@ function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
         exit={{ scale: 0.8, opacity: 0, y: 40 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
-        className={`relative flex h-[500px] w-[340px] flex-col items-center overflow-hidden rounded-3xl border-2 bg-gradient-to-br from-neutral via-neutral/95 to-black/90 p-6 ${styles.border} ${styles.glow}`}
+        className={`relative flex max-h-[90vh] min-h-[520px] w-[340px] flex-col items-center overflow-y-auto overflow-x-hidden rounded-3xl border-2 bg-gradient-to-br from-neutral via-neutral/95 to-black/90 p-6 pb-24 ${styles.border} ${styles.glow}`}
       >
         {/* Rank Badge */}
         <div className={`absolute left-6 top-6 z-10 flex items-center gap-2 rounded-full border px-4 py-2 backdrop-blur-sm ${styles.border} ${isTopThree ? 'bg-black/60' : 'bg-white/10'}`}>
@@ -98,7 +110,7 @@ function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
         </div>
 
         {/* Player Photo */}
-        <div className="relative mt-16 h-56 w-56 overflow-hidden rounded-full border-4 shadow-2xl" style={{ borderColor: isTopThree ? styles.border.split('-')[1]?.split('/')[0] : 'rgba(255,255,255,0.2)' }}>
+        <div className="relative mt-16 h-48 w-48 shrink-0 overflow-hidden rounded-full border-4 shadow-2xl" style={{ borderColor: isTopThree ? styles.border.split('-')[1]?.split('/')[0] : 'rgba(255,255,255,0.2)' }}>
           {player.photoUrl ? (
             <Image
               src={player.photoUrl}
@@ -114,7 +126,7 @@ function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
         </div>
 
         {/* Player Info */}
-        <div className="mt-8 flex flex-col items-center gap-4">
+        <div className="mt-6 flex w-full flex-col items-center gap-4">
           <h2 className="font-display text-3xl font-bold tracking-tight text-white">
             {player.name}
           </h2>
@@ -131,6 +143,60 @@ function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
               <span className="text-xl text-white/50">PDLs</span>
             </div>
           </div>
+
+          <div className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-4">
+            <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">
+              Histórico em partidas encerradas
+            </p>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2.5">
+                <TrendingUp className="h-4 w-4 shrink-0 text-emerald-400" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">
+                    Vitórias
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-emerald-300">
+                    {wins}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2.5">
+                <TrendingDown className="h-4 w-4 shrink-0 text-red-400" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">
+                    Derrotas
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-red-300">
+                    {losses}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5">
+                <Star className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">
+                    MVPs
+                  </p>
+                  <p
+                    className={`text-lg font-bold tabular-nums ${isTopThree ? styles.text : "text-primary"}`}
+                  >
+                    {mvpCount}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-red-950/40 px-3 py-2.5">
+                <Frown className="h-4 w-4 shrink-0 text-red-400/90" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">
+                    Pior da partida
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-red-300/90">
+                    {dudCount}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Close hint */}
@@ -143,7 +209,10 @@ function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
 }
 
 export function RankingList({ players }: RankingListProps) {
-  const [selectedPlayer, setSelectedPlayer] = useState<{ player: Player; position: number } | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<{
+    player: RankingListPlayer;
+    position: number;
+  } | null>(null);
 
   const containerVariants = {
     hidden: { opacity: 0 },

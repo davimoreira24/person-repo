@@ -12,3 +12,4 @@ GRANT SELECT ON votes TO anon;
 GRANT SELECT ON voting_sessions TO anon;
 GRANT INSERT, UPDATE ON votes TO anon;
 
+

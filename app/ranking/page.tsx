@@ -1,4 +1,8 @@
-import { getPlayers } from "@/lib/queries/players";
+import {
+  getPlayerCareerStatsMap,
+  getPlayers,
+  type PlayerCareerStats,
+} from "@/lib/queries/players";
 import { RankingList } from "./_components/ranking-list";
 import Link from "next/link";
 import { buttonStyles } from "@/components/ui/button-styles";
@@ -7,10 +11,25 @@ import { ArrowLeft } from "lucide-react";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function RankingPage() {
-  const allPlayers = await getPlayers();
+const defaultStats = (): PlayerCareerStats => ({
+  wins: 0,
+  losses: 0,
+  mvpCount: 0,
+  dudCount: 0,
+});
 
-  const ranking = allPlayers.slice().sort((a, b) => b.score - a.score);
+export default async function RankingPage() {
+  const [allPlayers, careerMap] = await Promise.all([
+    getPlayers(),
+    getPlayerCareerStatsMap(),
+  ]);
+
+  const ranking = allPlayers
+    .map((p) => ({
+      ...p,
+      careerStats: careerMap.get(p.id) ?? defaultStats(),
+    }))
+    .sort((a, b) => b.score - a.score);
 
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-20 pt-28">

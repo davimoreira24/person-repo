@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   matchAwards,
@@ -14,6 +14,76 @@ export async function getPlayers() {
     .orderBy(asc(players.name));
 
   return data;
+}
+
+export type PlayerCareerStats = {
+  wins: number;
+  losses: number;
+  mvpCount: number;
+  dudCount: number;
+};
+
+const emptyCareerStats = (): PlayerCareerStats => ({
+  wins: 0,
+  losses: 0,
+  mvpCount: 0,
+  dudCount: 0,
+});
+
+/** Vitórias/derrotas em partidas com `winner_team` definido; MVPs e piores via `match_awards`. */
+export async function getPlayerCareerStatsMap(): Promise<
+  Map<number, PlayerCareerStats>
+> {
+  const matchPartRows = await db
+    .select({
+      playerId: matchPlayers.playerId,
+      team: matchPlayers.team,
+      winnerTeam: matches.winnerTeam,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matchPlayers.matchId, matches.id))
+    .where(isNotNull(matches.winnerTeam));
+
+  const stats = new Map<number, PlayerCareerStats>();
+
+  const touch = (playerId: number): PlayerCareerStats => {
+    let row = stats.get(playerId);
+    if (!row) {
+      row = emptyCareerStats();
+      stats.set(playerId, row);
+    }
+    return row;
+  };
+
+  for (const row of matchPartRows) {
+    const s = touch(row.playerId);
+    const wt = row.winnerTeam as 1 | 2;
+    if (row.team === wt) {
+      s.wins += 1;
+    } else {
+      s.losses += 1;
+    }
+  }
+
+  const awardRows = await db
+    .select({
+      playerId: matchAwards.playerId,
+      awardType: matchAwards.awardType,
+    })
+    .from(matchAwards)
+    .innerJoin(matches, eq(matchAwards.matchId, matches.id))
+    .where(isNotNull(matches.winnerTeam));
+
+  for (const row of awardRows) {
+    const s = touch(row.playerId);
+    if (row.awardType === "mvp") {
+      s.mvpCount += 1;
+    } else if (row.awardType === "dud") {
+      s.dudCount += 1;
+    }
+  }
+
+  return stats;
 }
 
 export type MatchTeamPlayer = {

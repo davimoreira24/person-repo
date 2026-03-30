@@ -158,3 +158,4 @@ Quando a votação é finalizada:
 - Confirme que há pelo menos 1 voto registrado
 - Verifique os logs do servidor para mais detalhes
 
+
