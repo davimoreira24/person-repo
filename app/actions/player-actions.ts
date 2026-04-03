@@ -270,6 +270,7 @@ export async function completeMatchAction(input: unknown) {
   revalidatePath("/players");
   revalidatePath(`/match/${matchId}`);
   revalidatePath("/ranking");
+  revalidatePath("/historico");
 
   const ranking = await db
     .select({

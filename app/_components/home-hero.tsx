@@ -26,7 +26,7 @@ export function HomeHero() {
         real.
       </motion.h1>
 
-      <div className="flex flex-col gap-4 md:flex-row">
+      <div className="flex flex-col flex-wrap items-center justify-center gap-4 md:flex-row">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -43,6 +43,15 @@ export function HomeHero() {
         >
           <Button variant="outline" asChild>
             <Link href="/ranking">Ver Ranking</Link>
+          </Button>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
+        >
+          <Button variant="outline" asChild>
+            <Link href="/historico">Histórico</Link>
           </Button>
         </motion.div>
       </div>

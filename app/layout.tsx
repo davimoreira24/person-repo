@@ -24,11 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="bg-neutral text-neutral-foreground">
+    <html lang="pt-BR" className="bg-[#070a14] text-neutral-foreground">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${cinzel.variable} antialiased min-h-screen`}
       >
-        <div className="relative flex min-h-screen flex-col overflow-hidden">
+        {/* overflow-x-hidden: animações não criam barra horizontal; fundo vem do body + Aurora */}
+        <div className="relative flex min-h-dvh flex-col overflow-x-hidden">
           <AuroraBackground />
           <ParticleField density={28} />
           <main className="relative z-10 flex-1">{children}</main>

@@ -30,12 +30,21 @@
 }
 
 body {
-  background: radial-gradient(
-      circle at top,
-      rgba(42, 148, 244, 0.12),
-      transparent 45%
+  /* Cor sólida de fallback — evita “buracos” pretos entre camadas animadas */
+  background-color: var(--background);
+  background-image: radial-gradient(
+      ellipse 110% 70% at 50% -15%,
+      rgba(42, 148, 244, 0.14),
+      transparent 52%
     ),
-    linear-gradient(180deg, #060914, #030409 60%, #03040a 100%);
+    /* Gradiente vertical suave (sem parada dura no meio → sem faixa fixa preto/azul) */
+    linear-gradient(
+      180deg,
+      #050814 0%,
+      var(--background) 28%,
+      #0a101c 62%,
+      #0e1724 100%
+    );
   color: var(--foreground);
   min-height: 100vh;
   font-family: var(--font-geist-sans), system-ui, sans-serif;

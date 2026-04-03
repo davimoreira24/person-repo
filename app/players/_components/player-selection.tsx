@@ -150,6 +150,14 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
           </Button>
           <Button
             type="button"
+            variant="outline"
+            className="whitespace-nowrap"
+            asChild
+          >
+            <Link href="/historico">Histórico</Link>
+          </Button>
+          <Button
+            type="button"
             variant="secondary"
             className="whitespace-nowrap"
             onClick={() => setIsCreateModalOpen(true)}

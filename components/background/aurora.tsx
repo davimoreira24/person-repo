@@ -17,15 +17,16 @@ export function AuroraBackground() {
           key={gradient}
           className="absolute inset-0 blur-3xl"
           style={{ backgroundImage: gradient }}
-          initial={{ opacity: 0.35, scale: 1.1 }}
+          initial={{ opacity: 0.4, scale: 1.06 }}
           animate={{
-            opacity: [0.45, 0.75, 0.45],
-            scale: [1.05, 1.18, 1.05],
-            rotate: [0, index === 0 ? 2 : -2, 0],
+            /* Faixa menor = menos “respiração” na costura entre tons do fundo */
+            opacity: [0.5, 0.64, 0.5],
+            scale: [1.04, 1.1, 1.04],
+            rotate: [0, index === 0 ? 1.2 : -1.2, 0],
           }}
           transition={{
             repeat: Infinity,
-            duration: 18 + index * 4,
+            duration: 22 + index * 5,
             ease: "easeInOut",
           }}
         />
@@ -36,10 +37,10 @@ export function AuroraBackground() {
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       <motion.div
-        className="absolute inset-0 bg-hero-grid opacity-80"
+        className="absolute inset-0 bg-hero-grid"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 0.6 }}
-        transition={{ duration: 1.8, ease: "easeOut" }}
+        animate={{ opacity: 0.55 }}
+        transition={{ duration: 1.2, ease: "easeOut" }}
       />
       {layers}
     </div>

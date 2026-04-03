@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   matchAwards,
@@ -195,6 +195,103 @@ export async function getRecentMatches(limit = 5) {
     .limit(limit);
 
   return data;
+}
+
+export type MatchHistoryEntry = {
+  id: number;
+  completedAt: Date | null;
+  winnerTeam: 1 | 2;
+  mvpName: string | null;
+  dudName: string | null;
+  team1Names: string[];
+  team2Names: string[];
+};
+
+/** Partidas encerradas (com vencedor), mais recentes primeiro. */
+export async function getCompletedMatchesHistory(
+  limit = 200,
+): Promise<MatchHistoryEntry[]> {
+  const completed = await db
+    .select({
+      id: matches.id,
+      completedAt: matches.completedAt,
+      winnerTeam: matches.winnerTeam,
+    })
+    .from(matches)
+    .where(isNotNull(matches.winnerTeam))
+    .orderBy(desc(matches.completedAt))
+    .limit(limit);
+
+  if (completed.length === 0) {
+    return [];
+  }
+
+  const ids = completed.map((m) => m.id);
+
+  const awardRows = await db
+    .select({
+      matchId: matchAwards.matchId,
+      awardType: matchAwards.awardType,
+      name: players.name,
+    })
+    .from(matchAwards)
+    .innerJoin(players, eq(matchAwards.playerId, players.id))
+    .where(inArray(matchAwards.matchId, ids));
+
+  const mpRows = await db
+    .select({
+      matchId: matchPlayers.matchId,
+      team: matchPlayers.team,
+      name: players.name,
+    })
+    .from(matchPlayers)
+    .innerJoin(players, eq(matchPlayers.playerId, players.id))
+    .where(inArray(matchPlayers.matchId, ids))
+    .orderBy(asc(matchPlayers.id));
+
+  const awardsByMatch = new Map<
+    number,
+    { mvp: string | null; dud: string | null }
+  >();
+  for (const id of ids) {
+    awardsByMatch.set(id, { mvp: null, dud: null });
+  }
+  for (const row of awardRows) {
+    const a = awardsByMatch.get(row.matchId);
+    if (!a) continue;
+    if (row.awardType === "mvp") {
+      a.mvp = row.name;
+    }
+    if (row.awardType === "dud") {
+      a.dud = row.name;
+    }
+  }
+
+  const teamsByMatch = new Map<number, { 1: string[]; 2: string[] }>();
+  for (const id of ids) {
+    teamsByMatch.set(id, { 1: [], 2: [] });
+  }
+  for (const row of mpRows) {
+    const t = teamsByMatch.get(row.matchId);
+    if (!t) continue;
+    const teamNum = row.team as 1 | 2;
+    t[teamNum].push(row.name);
+  }
+
+  return completed.map((m) => {
+    const wt = m.winnerTeam as 1 | 2;
+    const awards = awardsByMatch.get(m.id);
+    const teams = teamsByMatch.get(m.id);
+    return {
+      id: m.id,
+      completedAt: m.completedAt,
+      winnerTeam: wt,
+      mvpName: awards?.mvp ?? null,
+      dudName: awards?.dud ?? null,
+      team1Names: teams?.[1] ?? [],
+      team2Names: teams?.[2] ?? [],
+    };
+  });
 }
 
 export async function getMatchPlayers(matchId: number, team: 1 | 2) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,8 @@ export function VotingInterface({
     }
   }, [session.id]);
 
+  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Setup Realtime subscription
   useEffect(() => {
     const channel = supabaseAnon
@@ -70,13 +72,22 @@ export function VotingInterface({
           filter: `voting_session_id=eq.${session.id}`,
         },
         () => {
-          // Refresh vote counts
-          router.refresh();
+          // Evita vários router.refresh() seguidos (cada um re-renderiza a página inteira = “piscada”)
+          if (refreshDebounceRef.current) {
+            clearTimeout(refreshDebounceRef.current);
+          }
+          refreshDebounceRef.current = setTimeout(() => {
+            refreshDebounceRef.current = null;
+            router.refresh();
+          }, 450);
         }
       )
       .subscribe();
 
     return () => {
+      if (refreshDebounceRef.current) {
+        clearTimeout(refreshDebounceRef.current);
+      }
       supabaseAnon.removeChannel(channel);
     };
   }, [session.id, router]);
