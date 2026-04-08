@@ -37,6 +37,26 @@ const config: Config = {
         display: ["var(--font-cinzel)", "serif"],
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
       },
+      keyframes: {
+        "poop-gross": {
+          "0%, 100%": {
+            filter: "brightness(1) hue-rotate(0deg)",
+            opacity: "0.92",
+          },
+          "50%": {
+            filter: "brightness(1.12) hue-rotate(-12deg)",
+            opacity: "1",
+          },
+        },
+        "poop-wobble": {
+          "0%, 100%": { transform: "rotate(-0.55deg) scale(1)" },
+          "50%": { transform: "rotate(0.55deg) scale(1.004)" },
+        },
+      },
+      animation: {
+        "poop-gross": "poop-gross 2.6s ease-in-out infinite",
+        "poop-wobble": "poop-wobble 2.1s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

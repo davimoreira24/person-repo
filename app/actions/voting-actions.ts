@@ -239,6 +239,7 @@ export async function finalizeVotingAction(votingSessionId: string) {
   revalidatePath("/players");
   revalidatePath("/ranking");
   revalidatePath("/historico");
+  revalidatePath("/analytics/campeoes");
 
   return { matchId: session.matchId, mvpPlayerId, dudPlayerId };
 }

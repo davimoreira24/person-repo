@@ -26,34 +26,53 @@ export function HomeHero() {
         real.
       </motion.h1>
 
-      <div className="flex flex-col flex-wrap items-center justify-center gap-4 md:flex-row">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
-        >
-          <Button asChild>
-            <Link href="/players">Iniciar</Link>
-          </Button>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.35, duration: 0.5, ease: "easeOut" }}
-        >
-          <Button variant="outline" asChild>
-            <Link href="/ranking">Ver Ranking</Link>
-          </Button>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
-        >
-          <Button variant="outline" asChild>
-            <Link href="/historico">Histórico</Link>
-          </Button>
-        </motion.div>
+      <div className="flex max-w-xl flex-col items-center gap-6">
+        <p className="text-xs uppercase tracking-[0.35em] text-white/45">
+          Escolha o modo de jogo
+        </p>
+        <div className="flex w-full flex-col flex-wrap items-stretch justify-center gap-4 sm:flex-row sm:items-start">
+          <motion.div
+            className="flex flex-1 flex-col sm:min-w-[10.5rem]"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
+          >
+            <Button asChild className="w-full">
+              <Link href="/players">Modo clássico</Link>
+            </Button>
+          </motion.div>
+          <motion.div
+            className="flex flex-1 flex-col sm:min-w-[10.5rem]"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.32, duration: 0.5, ease: "easeOut" }}
+          >
+            <Button variant="outline" asChild className="w-full">
+              <Link href="/players?mode=random">Modo aleatório</Link>
+            </Button>
+          </motion.div>
+        </div>
+
+        <div className="flex w-full flex-col flex-wrap items-center justify-center gap-4 border-t border-white/10 pt-6 md:flex-row">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.38, duration: 0.5, ease: "easeOut" }}
+          >
+            <Button variant="outline" asChild>
+              <Link href="/ranking">Ver Ranking</Link>
+            </Button>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.42, duration: 0.5, ease: "easeOut" }}
+          >
+            <Button variant="outline" asChild>
+              <Link href="/historico">Histórico</Link>
+            </Button>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

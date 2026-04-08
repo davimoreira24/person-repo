@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buttonStyles } from "@/components/ui/button";
-import { getMatchById, getPlayers } from "@/lib/queries/players";
+import { buildPoopRoastByPlayerId } from "@/lib/match/poop-roast";
+import {
+  getCurrentWinAndLossStreakByPlayerIds,
+  getMatchById,
+  getPlayers,
+  type MatchWithTeams,
+} from "@/lib/queries/players";
 import { TeamDisplay } from "./_components/team-display";
 import { CompleteMatchDialog } from "./_components/complete-match-dialog";
 import { ReplayMatchButton } from "./_components/replay-match-button";
@@ -33,19 +39,51 @@ export default async function MatchPage({ params }: MatchPageProps) {
     notFound();
   }
 
+  const streakIds = [
+    ...match.teams[1].map((p) => p.playerId),
+    ...match.teams[2].map((p) => p.playerId),
+  ];
+  const { wins: winStreakMap, losses: lossStreakMap } =
+    await getCurrentWinAndLossStreakByPlayerIds(streakIds);
+
+  const matchForView: MatchWithTeams = {
+    ...match,
+    teams: {
+      1: match.teams[1].map((p) => ({
+        ...p,
+        winStreak: winStreakMap.get(p.playerId) ?? 0,
+        lossStreak: lossStreakMap.get(p.playerId) ?? 0,
+      })),
+      2: match.teams[2].map((p) => ({
+        ...p,
+        winStreak: winStreakMap.get(p.playerId) ?? 0,
+        lossStreak: lossStreakMap.get(p.playerId) ?? 0,
+      })),
+    },
+  };
+
+  const poopRoastByPlayerId = buildPoopRoastByPlayerId(
+    matchForView.id,
+    matchForView,
+  );
+
   const allPlayers = await getPlayers();
 
-  const winnerPlayers = match.winnerTeam ? match.teams[match.winnerTeam] : [];
-  const loserTeam = match.winnerTeam ? (match.winnerTeam === 1 ? 2 : 1) : null;
-  const loserPlayers = loserTeam ? match.teams[loserTeam] : [];
-  const mvpName = match.awards.mvpPlayerId
+  const winnerPlayers = matchForView.winnerTeam
+    ? matchForView.teams[matchForView.winnerTeam]
+    : [];
+  const loserTeam = matchForView.winnerTeam
+    ? (matchForView.winnerTeam === 1 ? 2 : 1)
+    : null;
+  const loserPlayers = loserTeam ? matchForView.teams[loserTeam] : [];
+  const mvpName = matchForView.awards.mvpPlayerId
     ? winnerPlayers.find(
-        (player) => player.playerId === match.awards.mvpPlayerId
+        (player) => player.playerId === matchForView.awards.mvpPlayerId,
       )?.name
     : null;
-  const dudName = match.awards.dudPlayerId
+  const dudName = matchForView.awards.dudPlayerId
     ? loserPlayers.find(
-        (player) => player.playerId === match.awards.dudPlayerId
+        (player) => player.playerId === matchForView.awards.dudPlayerId,
       )?.name
     : null;
 
@@ -73,25 +111,33 @@ export default async function MatchPage({ params }: MatchPageProps) {
           >
             Voltar
           </Link>
-          {match.winnerTeam ? null : <CompleteMatchDialog match={match} />}
+          {matchForView.winnerTeam ? null : (
+            <CompleteMatchDialog match={matchForView} />
+          )}
         </div>
         <div>
           <span className="text-xs uppercase tracking-[0.35em] text-white/50">
-            Partida #{match.id}
+            Partida #{matchForView.id}
           </span>
           <h1 className="font-display text-4xl text-white">
             Resultado dos times
           </h1>
           <p className="text-sm text-white/60">
-            Criada em {formatDateTime(match.createdAt)}
+            Criada em {formatDateTime(matchForView.createdAt)}
           </p>
+          {matchForView.gameMode === "random_champions" && (
+            <p className="text-sm text-primary/90">
+              Modo aleatório: um campeão compatível com cada rota foi sorteado
+              automaticamente.
+            </p>
+          )}
         </div>
-        {match.winnerTeam ? (
+        {matchForView.winnerTeam ? (
           <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
             <span>
               Time vencedor:{" "}
               <span className="text-primary font-medium">
-                Time {match.winnerTeam}
+                Time {matchForView.winnerTeam}
               </span>
             </span>
             {mvpName && (
@@ -108,7 +154,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
               </span>
             )}
             <div className="mt-2 flex flex-wrap gap-3">
-              <ReplayMatchButton matchId={match.id} />
+              <ReplayMatchButton matchId={matchForView.id} />
               <Link
                 href="/players"
                 className={buttonStyles({ variant: "ghost" })}
@@ -118,18 +164,21 @@ export default async function MatchPage({ params }: MatchPageProps) {
             </div>
           </div>
         ) : (
-          <CompleteMatchDialog match={match} />
+          <CompleteMatchDialog match={matchForView} />
         )}
       </header>
 
-      <TeamDisplay match={match} />
+      <TeamDisplay
+        match={matchForView}
+        poopRoastByPlayerId={poopRoastByPlayerId}
+      />
 
-      {match.winnerTeam && (
+      {matchForView.winnerTeam && (
         <RankingSection
-          matchId={match.id}
+          matchId={matchForView.id}
           ranking={ranking}
-          mvpId={match.awards.mvpPlayerId}
-          dudId={match.awards.dudPlayerId}
+          mvpId={matchForView.awards.mvpPlayerId}
+          dudId={matchForView.awards.dudPlayerId}
         />
       )}
     </section>

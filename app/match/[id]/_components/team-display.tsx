@@ -2,7 +2,53 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { ElectricBorder } from "@/components/electric-border";
+import { PoopStreakBorder } from "@/components/poop-streak-border";
+import { cn } from "@/lib/utils";
 import type { MatchTeamPlayer, MatchWithTeams } from "@/lib/queries/players";
+
+/** Vitórias seguidas mínimas para ativar a borda elétrica (dourada). */
+const WIN_STREAK_FOR_ELECTRIC_BORDER = 3;
+
+/** Derrotas seguidas mínimas para a “borda cocô”. */
+const LOSS_STREAK_FOR_POOP_BORDER = 3;
+
+/**
+ * `NEXT_PUBLIC_WIN_STREAK_BORDER_DEMO=1` — força a borda no 1.º jogador do time azul (topo), para testar o efeito sem precisar de sequência real.
+ */
+function showElectricWinStreakBorder(
+  player: MatchTeamPlayer,
+  team: 1 | 2,
+  index: number,
+): boolean {
+  const demoForced =
+    process.env.NEXT_PUBLIC_WIN_STREAK_BORDER_DEMO === "1";
+  if (demoForced && team === 1 && index === 0) {
+    return true;
+  }
+  return player.winStreak >= WIN_STREAK_FOR_ELECTRIC_BORDER;
+}
+
+/**
+ * Borda cocô: perdedor em série. Vitória elétrica tem prioridade se empate impossível na prática.
+ * `NEXT_PUBLIC_LOSS_STREAK_BORDER_DEMO=1` — força no 1.º jogador do time vermelho (topo).
+ */
+function showPoopLossStreakBorder(
+  player: MatchTeamPlayer,
+  team: 1 | 2,
+  index: number,
+  hasElectricBorder: boolean,
+): boolean {
+  if (hasElectricBorder) {
+    return false;
+  }
+  const demoForced =
+    process.env.NEXT_PUBLIC_LOSS_STREAK_BORDER_DEMO === "1";
+  if (demoForced && team === 2 && index === 0) {
+    return true;
+  }
+  return player.lossStreak >= LOSS_STREAK_FOR_POOP_BORDER;
+}
 
 function getInitials(name: string) {
   return name
@@ -47,9 +93,15 @@ interface LolPlayerCardProps {
   player: MatchTeamPlayer;
   team: 1 | 2;
   index: number;
+  poopRoastWord?: string;
 }
 
-function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
+function LolPlayerCard({
+  player,
+  team,
+  index,
+  poopRoastWord,
+}: LolPlayerCardProps) {
   const isBlueSide = team === 1;
   const sideGradient = isBlueSide
     ? "from-[#1C2D5A] via-[#27427C] to-[#19233F]"
@@ -57,26 +109,30 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
   const borderColor = player.isWinner
     ? "border-[#E6C357]"
     : isBlueSide
-    ? "border-[#4F72FF]/80"
-    : "border-[#FF655A]/80";
+      ? "border-[#4F72FF]/80"
+      : "border-[#FF655A]/80";
   const glowColor = player.isWinner
     ? "shadow-[0_0_35px_rgba(230,195,87,0.6)]"
     : isBlueSide
-    ? "shadow-[0_0_25px_rgba(79,114,255,0.55)]"
-    : "shadow-[0_0_25px_rgba(255,101,90,0.55)]";
+      ? "shadow-[0_0_25px_rgba(79,114,255,0.55)]"
+      : "shadow-[0_0_25px_rgba(255,101,90,0.55)]";
   const role = ROLE_ORDER[index] ?? null;
   const roleInfo = role ? ROLE_INFO[role] : null;
 
-  return (
-    <motion.div
-      layout
-      custom={isBlueSide ? "top" : "bottom"}
-      initial="hidden"
-      animate="visible"
-      variants={cardVariants}
-      transition={{ delay: index * 0.06 }}
-      className={`group relative flex h-[280px] w-[168px] shrink-0 cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-gradient-to-b ${sideGradient} ${borderColor} ${glowColor} transition-transform duration-300 hover:-translate-y-1`}
-    >
+  const electricBorder = showElectricWinStreakBorder(player, team, index);
+  const poopBorder = showPoopLossStreakBorder(player, team, index, electricBorder);
+
+  const cardSurfaceClass = cn(
+    "group relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl border-2 bg-gradient-to-b",
+    sideGradient,
+    electricBorder || poopBorder
+      ? "border-transparent shadow-none"
+      : cn(borderColor, glowColor),
+    "transition-transform duration-300 hover:-translate-y-1",
+  );
+
+  const cardBody = (
+    <>
       <div className="relative flex-1 overflow-hidden">
         {player.isMvp && (
           <div className="absolute left-3 top-3 z-20 flex items-center gap-1 rounded-full border border-yellow-300/60 bg-yellow-300/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.3em] text-yellow-100 shadow-[0_0_12px_rgba(230,195,87,0.55)]">
@@ -88,6 +144,42 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
             Pior
           </div>
         )}
+        {electricBorder && player.winStreak >= WIN_STREAK_FOR_ELECTRIC_BORDER ? (
+          <div className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-1.5rem)] rounded-full border border-primary/50 bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-primary shadow-[0_0_14px_rgba(230,195,87,0.35)]">
+            {player.winStreak} vitórias seguidas
+          </div>
+        ) : null}
+        {electricBorder &&
+        process.env.NEXT_PUBLIC_WIN_STREAK_BORDER_DEMO === "1" &&
+        team === 1 &&
+        index === 0 &&
+        player.winStreak < WIN_STREAK_FOR_ELECTRIC_BORDER ? (
+          <div className="absolute bottom-3 left-3 z-20 rounded-full border border-accent/45 bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-accent">
+            Preview borda (demo)
+          </div>
+        ) : null}
+        {poopBorder && player.lossStreak >= LOSS_STREAK_FOR_POOP_BORDER ? (
+          <div className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#6b8f3a]/40 bg-black/70 px-2 py-1 text-[8px] leading-tight text-[#c4d4a8] shadow-[0_0_12px_rgba(45,55,20,0.6)]">
+            <span className="font-semibold tracking-wide text-[#d4c4a0]">
+              💩 {player.lossStreak} derrotas seguidas
+            </span>
+            <span className="mt-0.5 block text-[7px] leading-snug text-[#8a9a6e]">
+              Amuleto Confirmado ·{" "}
+              <span className="font-medium text-[#d8ccb0]">
+                {poopRoastWord ?? "—"}
+              </span>
+            </span>
+          </div>
+        ) : null}
+        {poopBorder &&
+        process.env.NEXT_PUBLIC_LOSS_STREAK_BORDER_DEMO === "1" &&
+        team === 2 &&
+        index === 0 &&
+        player.lossStreak < LOSS_STREAK_FOR_POOP_BORDER ? (
+          <div className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-1.5rem)] rounded-lg border border-[#6b8f3a]/35 bg-black/65 px-2 py-1 text-[8px] text-[#b8c898]">
+            Preview cocô (demo) — borda de derrota
+          </div>
+        ) : null}
         {roleInfo && (
           <div className="absolute right-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[10px] uppercase tracking-[0.35em] text-white/70 backdrop-blur-sm">
             <Image
@@ -118,14 +210,19 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
       </div>
 
       <div className="relative z-10 flex flex-col gap-2 border-t border-white/10 bg-black/80 px-3 py-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="font-display text-sm tracking-wide text-white drop-shadow-md">
             {player.name}
           </span>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-white/60">
+          <span className="shrink-0 text-[10px] uppercase tracking-[0.3em] text-white/60">
             {isBlueSide ? "Blue" : "Red"}
           </span>
         </div>
+        {player.championName ? (
+          <p className="line-clamp-2 text-[11px] font-medium leading-snug text-primary">
+            {player.championName}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between text-[11px] text-white/70">
           <div className="flex flex-col leading-tight">
             <span className="text-[10px] uppercase tracking-[0.35em] text-white/40">
@@ -135,18 +232,52 @@ function LolPlayerCard({ player, team, index }: LolPlayerCardProps) {
               {player.score}
             </span>
           </div>
-          <span className="text-xs font-semibold text-white">100%</span>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <motion.div
+      layout
+      custom={isBlueSide ? "top" : "bottom"}
+      initial="hidden"
+      animate="visible"
+      variants={cardVariants}
+      transition={{ delay: index * 0.06 }}
+      className="h-[280px] w-[168px] shrink-0"
+    >
+      {electricBorder ? (
+        <ElectricBorder
+          color="#E6C357"
+          speed={1.12}
+          chaos={0.13}
+          borderRadius={16}
+          className="h-full w-full"
+        >
+          <div className={cardSurfaceClass}>{cardBody}</div>
+        </ElectricBorder>
+      ) : poopBorder ? (
+        <PoopStreakBorder className="h-full w-full">
+          <div className={cardSurfaceClass}>{cardBody}</div>
+        </PoopStreakBorder>
+      ) : (
+        <div className={cardSurfaceClass}>{cardBody}</div>
+      )}
     </motion.div>
   );
 }
 
 interface TeamDisplayProps {
   match: MatchWithTeams;
+  /** Palavra “amuleto” por jogador (só quem tem 3+ derrotas seguidas). */
+  poopRoastByPlayerId: Record<number, string>;
 }
 
-export function TeamDisplay({ match }: TeamDisplayProps) {
+export function TeamDisplay({
+  match,
+  poopRoastByPlayerId,
+}: TeamDisplayProps) {
   return (
     <div className="relative flex flex-col gap-8 rounded-3xl border border-white/10 bg-gradient-to-b from-[#04070F]/95 via-[#060A13]/92 to-[#090E18]/95 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -156,6 +287,11 @@ export function TeamDisplay({ match }: TeamDisplayProps) {
         <h2 className="font-display text-4xl text-white drop-shadow-[0_0_35px_rgba(79,114,255,0.35)]">
           Summoner&apos;s Rift
         </h2>
+        {match.gameMode === "random_champions" && (
+          <span className="mt-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+            Campeões aleatórios por rota
+          </span>
+        )}
         {match.winnerTeam && (
           <div className="mt-1 flex items-center gap-2 rounded-full border border-yellow-400/50 bg-yellow-300/10 px-3 py-1 text-xs uppercase tracking-[0.35em] text-yellow-100">
             Time {match.winnerTeam} vitorioso
@@ -171,6 +307,7 @@ export function TeamDisplay({ match }: TeamDisplayProps) {
               player={player}
               team={1}
               index={index}
+              poopRoastWord={poopRoastByPlayerId[player.playerId]}
             />
           ))}
         </div>
@@ -190,6 +327,7 @@ export function TeamDisplay({ match }: TeamDisplayProps) {
               player={player}
               team={2}
               index={index}
+              poopRoastWord={poopRoastByPlayerId[player.playerId]}
             />
           ))}
         </div>

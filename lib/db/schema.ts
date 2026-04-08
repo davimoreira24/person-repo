@@ -36,6 +36,8 @@ export const matches = pgTable("matches", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   winnerTeam: integer("winner_team"),
   votingSessionId: uuid("voting_session_id"),
+  /** classic = só times; random_champions = sorteia campeão por rota (Meraki). */
+  gameMode: varchar("game_mode", { length: 32 }).default("classic").notNull(),
 });
 
 export const matchPlayers = pgTable(
@@ -49,6 +51,8 @@ export const matchPlayers = pgTable(
       .notNull()
       .references(() => players.id, { onDelete: "cascade" }),
     team: integer("team").notNull(),
+    championKey: varchar("champion_key", { length: 48 }),
+    championName: varchar("champion_name", { length: 80 }),
   },
   (table) => ({
     matchIdx: index("match_players_match_idx").on(table.matchId),

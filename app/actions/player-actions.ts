@@ -4,8 +4,20 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { matchAwards, matchPlayers, matches, players } from "@/lib/db/schema";
+import {
+  fetchChampionCatalog,
+  pickRandomChampionsForMatch,
+} from "@/lib/lol/meraki-champions";
 import { playerBucket, supabaseAdmin } from "@/lib/supabase/server";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import {
+  MATCH_GAME_CLASSIC,
+  MATCH_GAME_RANDOM_CHAMPIONS,
+} from "@/lib/match-game-mode";
+import { partitionTenPlayersByScore } from "@/lib/matchmaking/balance-teams";
+import { assignTeamLaneOrderAvoidingRepeat } from "@/lib/matchmaking/improved-lanes";
+import { shuffle } from "@/lib/matchmaking/shuffle-crypto";
+import { getLastLaneIndexByPlayerId } from "@/lib/queries/last-lane";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
@@ -18,8 +30,13 @@ const updateScoreSchema = z.object({
   revalidatePaths: z.array(z.string()).optional(),
 });
 
-const createMatchSchema = z.object({
-  playerIds: z.array(z.number().int().positive()).length(10),
+const createMatchInputSchema = z.object({
+  playerIds: z
+    .array(z.number().int().positive())
+    .length(10)
+    .refine((ids) => new Set(ids).size === 10, "Dez jogadores distintos são obrigatórios."),
+  balanceTeams: z.boolean().optional(),
+  improvedLanes: z.boolean().optional(),
 });
 
 const completeMatchSchema = z.object({
@@ -27,6 +44,12 @@ const completeMatchSchema = z.object({
   winnerTeam: z.union([z.literal(1), z.literal(2)]),
   mvpPlayerId: z.number().int().positive(),
   dudPlayerId: z.number().int().positive(),
+});
+
+const replayMatchInputSchema = z.object({
+  matchId: z.number().int().positive(),
+  balanceTeams: z.boolean().optional(),
+  improvedLanes: z.boolean().optional(),
 });
 
 export async function createPlayerAction(formData: FormData) {
@@ -99,43 +122,70 @@ export async function updatePlayerScoreAction(input: unknown) {
   });
 }
 
-function shuffle<T>(items: T[]): T[] {
-  const arr = [...items];
+async function buildShuffledTeams(
+  playerIds: number[],
+  balanceTeams: boolean,
+  improvedLanes: boolean,
+): Promise<{ teamOneShuffled: number[]; teamTwoShuffled: number[] }> {
+  let teamOne: number[];
+  let teamTwo: number[];
 
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    // Generate a fresh random value for each iteration
-    const randomBuffer = new Uint32Array(1);
-    crypto.getRandomValues(randomBuffer);
-    // Use modulo bias-free method: reject and retry if needed
-    const max = Math.floor(0xffffffff / (i + 1)) * (i + 1);
-    let randomValue = randomBuffer[0];
+  if (!balanceTeams) {
+    const shuffled = shuffle(playerIds);
+    teamOne = shuffled.slice(0, 5);
+    teamTwo = shuffled.slice(5, 10);
+  } else {
+    const scoreRows = await db
+      .select({ id: players.id, score: players.score })
+      .from(players)
+      .where(inArray(players.id, playerIds));
 
-    // Rejection sampling to avoid modulo bias
-    while (randomValue >= max) {
-      crypto.getRandomValues(randomBuffer);
-      randomValue = randomBuffer[0];
+    if (scoreRows.length !== 10) {
+      throw new Error("Não foi possível carregar as pontuações dos 10 jogadores.");
     }
 
-    const j = randomValue % (i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    const scoreMap = new Map(scoreRows.map((r) => [r.id, r.score]));
+    const ordered = playerIds.map((id) => ({
+      id,
+      score: scoreMap.get(id) ?? 0,
+    }));
+    const split = partitionTenPlayersByScore(ordered);
+    teamOne = split.team1;
+    teamTwo = split.team2;
   }
-  return arr;
+
+  if (!improvedLanes) {
+    return {
+      teamOneShuffled: shuffle(teamOne),
+      teamTwoShuffled: shuffle(teamTwo),
+    };
+  }
+
+  const lastLanes = await getLastLaneIndexByPlayerId(playerIds);
+  return {
+    teamOneShuffled: assignTeamLaneOrderAvoidingRepeat(teamOne, lastLanes),
+    teamTwoShuffled: assignTeamLaneOrderAvoidingRepeat(teamTwo, lastLanes),
+  };
 }
 
 export async function createMatchAction(input: unknown) {
-  const parsed = createMatchSchema.safeParse(input);
+  const parsed = createMatchInputSchema.safeParse(input);
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Seleção inválida");
   }
 
-  const shuffled = shuffle(parsed.data.playerIds);
-  const teamOneShuffled = shuffle(shuffled.slice(0, 5));
-  const teamTwoShuffled = shuffle(shuffled.slice(5, 10));
+  const balanceTeams = parsed.data.balanceTeams === true;
+  const improvedLanes = parsed.data.improvedLanes === true;
+  const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
+    parsed.data.playerIds,
+    balanceTeams,
+    improvedLanes,
+  );
 
   const [match] = await db
     .insert(matches)
-    .values({})
+    .values({ gameMode: MATCH_GAME_CLASSIC })
     .returning({ id: matches.id });
 
   const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
@@ -149,6 +199,50 @@ export async function createMatchAction(input: unknown) {
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${match.id}`);
+
+  return {
+    matchId: match.id,
+    teamOne: teamOneShuffled,
+    teamTwo: teamTwoShuffled,
+  };
+}
+
+export async function createRandomMatchAction(input: unknown) {
+  const parsed = createMatchInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Seleção inválida");
+  }
+
+  const catalog = await fetchChampionCatalog();
+  const championPicks = pickRandomChampionsForMatch(catalog);
+
+  const balanceTeams = parsed.data.balanceTeams === true;
+  const improvedLanes = parsed.data.improvedLanes === true;
+  const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
+    parsed.data.playerIds,
+    balanceTeams,
+    improvedLanes,
+  );
+
+  const [match] = await db
+    .insert(matches)
+    .values({ gameMode: MATCH_GAME_RANDOM_CHAMPIONS })
+    .returning({ id: matches.id });
+
+  const orderedIds = [...teamOneShuffled, ...teamTwoShuffled];
+  const entries = orderedIds.map((playerId, index) => ({
+    matchId: match.id,
+    playerId,
+    team: index < 5 ? 1 : 2,
+    championKey: championPicks[index]!.key,
+    championName: championPicks[index]!.name,
+  }));
+
+  await db.insert(matchPlayers).values(entries);
+
+  revalidatePath(`/match/${match.id}`);
+  revalidatePath("/analytics/campeoes");
 
   return {
     matchId: match.id,
@@ -271,6 +365,7 @@ export async function completeMatchAction(input: unknown) {
   revalidatePath(`/match/${matchId}`);
   revalidatePath("/ranking");
   revalidatePath("/historico");
+  revalidatePath("/analytics/campeoes");
 
   const ranking = await db
     .select({
@@ -292,48 +387,88 @@ export async function completeMatchAction(input: unknown) {
   };
 }
 
-export async function replayMatchAction(matchId: number) {
-  const existingMatch = await db
-    .select({ id: matches.id })
+export async function replayMatchAction(input: unknown) {
+  const parsed = replayMatchInputSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos para re-jogar.");
+  }
+
+  const { matchId } = parsed.data;
+  const balanceTeams = parsed.data.balanceTeams === true;
+  const improvedLanes = parsed.data.improvedLanes === true;
+
+  const existingRows = await db
+    .select({ id: matches.id, gameMode: matches.gameMode })
     .from(matches)
     .where(eq(matches.id, matchId))
     .limit(1);
 
-  if (existingMatch.length === 0) {
+  if (existingRows.length === 0) {
     throw new Error("Partida não encontrada para re-jogar.");
   }
+
+  const sourceGameMode = existingRows[0]!.gameMode;
+  const isRandom = sourceGameMode === MATCH_GAME_RANDOM_CHAMPIONS;
 
   const playerRows = await db
     .select({ playerId: matchPlayers.playerId })
     .from(matchPlayers)
-    .where(eq(matchPlayers.matchId, matchId));
+    .where(eq(matchPlayers.matchId, matchId))
+    .orderBy(asc(matchPlayers.id));
 
   if (playerRows.length !== 10) {
     throw new Error("Partida anterior não possui 10 jogadores cadastrados.");
   }
 
   const playerIds = playerRows.map((row) => row.playerId);
-  const shuffled = shuffle(playerIds);
-  const teamOneShuffled = shuffle(shuffled.slice(0, 5));
-  const teamTwoShuffled = shuffle(shuffled.slice(5, 10));
+  const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
+    playerIds,
+    balanceTeams,
+    improvedLanes,
+  );
 
   const [newMatch] = await db
     .insert(matches)
-    .values({})
+    .values({
+      gameMode: isRandom ? MATCH_GAME_RANDOM_CHAMPIONS : MATCH_GAME_CLASSIC,
+    })
     .returning({ id: matches.id });
 
-  const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
-    (playerId, index) => ({
+  let entries: {
+    matchId: number;
+    playerId: number;
+    team: number;
+    championKey?: string | null;
+    championName?: string | null;
+  }[];
+
+  if (isRandom) {
+    const catalog = await fetchChampionCatalog();
+    const championPicks = pickRandomChampionsForMatch(catalog);
+    const ordered = [...teamOneShuffled, ...teamTwoShuffled];
+    entries = ordered.map((playerId, index) => ({
       matchId: newMatch.id,
       playerId,
       team: index < 5 ? 1 : 2,
-    })
-  );
+      championKey: championPicks[index]!.key,
+      championName: championPicks[index]!.name,
+    }));
+  } else {
+    entries = [...teamOneShuffled, ...teamTwoShuffled].map(
+      (playerId, index) => ({
+        matchId: newMatch.id,
+        playerId,
+        team: index < 5 ? 1 : 2,
+      }),
+    );
+  }
 
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${newMatch.id}`);
   revalidatePath("/players");
+  revalidatePath("/analytics/campeoes");
 
   return { matchId: newMatch.id };
 }

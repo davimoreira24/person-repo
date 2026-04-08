@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { replayMatchAction } from "@/app/actions/player-actions";
+import { readLobbyConditionsFromStorage } from "@/lib/lobby-conditions-storage";
 import { Button } from "@/components/ui/button";
 
 interface ReplayMatchButtonProps {
@@ -17,7 +18,12 @@ export function ReplayMatchButton({ matchId, disabled }: ReplayMatchButtonProps)
   const handleReplay = () => {
     startTransition(async () => {
       try {
-        const result = await replayMatchAction(matchId);
+        const { balanceTeams, improvedLanes } = readLobbyConditionsFromStorage();
+        const result = await replayMatchAction({
+          matchId,
+          balanceTeams,
+          improvedLanes,
+        });
         router.push(`/match/${result.matchId}`);
       } catch (error) {
         console.error(error);

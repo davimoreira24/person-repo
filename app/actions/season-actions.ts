@@ -69,5 +69,6 @@ export async function resetSeasonAction(input: unknown) {
   revalidatePath("/players");
   revalidatePath("/ranking");
   revalidatePath("/historico");
+  revalidatePath("/analytics/campeoes");
   revalidatePath("/reiniciar-season");
 }

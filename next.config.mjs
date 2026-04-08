@@ -13,6 +13,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
+        hostname: "ddragon.leagueoflegends.com",
+        pathname: "/cdn/**",
+      },
+      {
+        protocol: "https",
         hostname: "picsum.photos",
       },
       ...(supabaseHostname

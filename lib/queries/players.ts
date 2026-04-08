@@ -86,6 +86,86 @@ export async function getPlayerCareerStatsMap(): Promise<
   return stats;
 }
 
+/**
+ * Vitórias e derrotas consecutivas (partidas encerradas, mais recente primeiro;
+ * cada sequência para no primeiro resultado oposto).
+ */
+export async function getCurrentWinAndLossStreakByPlayerIds(
+  playerIds: number[],
+): Promise<{ wins: Map<number, number>; losses: Map<number, number> }> {
+  const wins = new Map<number, number>();
+  const losses = new Map<number, number>();
+  for (const id of playerIds) {
+    wins.set(id, 0);
+    losses.set(id, 0);
+  }
+  if (playerIds.length === 0) {
+    return { wins, losses };
+  }
+
+  const rows = await db
+    .select({
+      playerId: matchPlayers.playerId,
+      team: matchPlayers.team,
+      winnerTeam: matches.winnerTeam,
+      completedAt: matches.completedAt,
+      matchId: matches.id,
+    })
+    .from(matchPlayers)
+    .innerJoin(matches, eq(matchPlayers.matchId, matches.id))
+    .where(
+      and(
+        inArray(matchPlayers.playerId, playerIds),
+        isNotNull(matches.winnerTeam),
+        isNotNull(matches.completedAt),
+      ),
+    );
+
+  type Row = (typeof rows)[number];
+  const byPlayer = new Map<number, Row[]>();
+  for (const r of rows) {
+    const list = byPlayer.get(r.playerId) ?? [];
+    list.push(r);
+    byPlayer.set(r.playerId, list);
+  }
+
+  const compareRecent = (a: Row, b: Row) => {
+    const ca = a.completedAt!.getTime();
+    const cb = b.completedAt!.getTime();
+    if (cb !== ca) return cb - ca;
+    return b.matchId - a.matchId;
+  };
+
+  for (const [playerId, list] of byPlayer) {
+    list.sort(compareRecent);
+    let winStreak = 0;
+    for (const m of list) {
+      const wt = m.winnerTeam as 1 | 2;
+      const won = m.team === wt;
+      if (won) {
+        winStreak += 1;
+      } else {
+        break;
+      }
+    }
+    wins.set(playerId, winStreak);
+
+    let lossStreak = 0;
+    for (const m of list) {
+      const wt = m.winnerTeam as 1 | 2;
+      const won = m.team === wt;
+      if (!won) {
+        lossStreak += 1;
+      } else {
+        break;
+      }
+    }
+    losses.set(playerId, lossStreak);
+  }
+
+  return { wins, losses };
+}
+
 export type MatchTeamPlayer = {
   playerId: number;
   name: string;
@@ -95,6 +175,12 @@ export type MatchTeamPlayer = {
   isWinner: boolean;
   isMvp: boolean;
   isDud: boolean;
+  championKey: string | null;
+  championName: string | null;
+  /** Vitórias seguidas (partidas encerradas), mais recente primeiro. */
+  winStreak: number;
+  /** Derrotas seguidas (partidas encerradas), mais recente primeiro. */
+  lossStreak: number;
 };
 
 export interface MatchWithTeams {
@@ -102,6 +188,7 @@ export interface MatchWithTeams {
   createdAt: Date | null;
   completedAt: Date | null;
   winnerTeam: 1 | 2 | null;
+  gameMode: string;
   awards: {
     mvpPlayerId: number | null;
     dudPlayerId: number | null;
@@ -119,12 +206,15 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       createdAt: matches.createdAt,
       completedAt: matches.completedAt,
       winnerTeam: matches.winnerTeam,
+      gameMode: matches.gameMode,
       playerId: players.id,
       name: players.name,
       photoUrl: players.photoUrl,
       score: players.score,
       team: matchPlayers.team,
       matchPlayerId: matchPlayers.id,
+      championKey: matchPlayers.championKey,
+      championName: matchPlayers.championName,
     })
     .from(matches)
     .leftJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
@@ -174,6 +264,10 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       isWinner,
       isMvp: awardMap.mvpPlayerId === playerId,
       isDud: awardMap.dudPlayerId === playerId,
+      championKey: row.championKey ?? null,
+      championName: row.championName ?? null,
+      winStreak: 0,
+      lossStreak: 0,
     });
   });
 
@@ -182,6 +276,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
     createdAt: matchInfo.createdAt,
     completedAt: matchInfo.completedAt,
     winnerTeam,
+    gameMode: matchInfo.gameMode ?? "classic",
     awards: awardMap,
     teams,
   };
@@ -201,6 +296,7 @@ export type MatchHistoryEntry = {
   id: number;
   completedAt: Date | null;
   winnerTeam: 1 | 2;
+  gameMode: string;
   mvpName: string | null;
   dudName: string | null;
   team1Names: string[];
@@ -216,6 +312,7 @@ export async function getCompletedMatchesHistory(
       id: matches.id,
       completedAt: matches.completedAt,
       winnerTeam: matches.winnerTeam,
+      gameMode: matches.gameMode,
     })
     .from(matches)
     .where(isNotNull(matches.winnerTeam))
@@ -286,6 +383,7 @@ export async function getCompletedMatchesHistory(
       id: m.id,
       completedAt: m.completedAt,
       winnerTeam: wt,
+      gameMode: m.gameMode ?? "classic",
       mvpName: awards?.mvp ?? null,
       dudName: awards?.dud ?? null,
       team1Names: teams?.[1] ?? [],

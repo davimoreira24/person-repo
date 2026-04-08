@@ -1,25 +1,35 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Player } from "@/lib/db/schema";
 import {
   createMatchAction,
+  createRandomMatchAction,
   updatePlayerScoreAction,
 } from "@/app/actions/player-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlayerCard } from "./player-card";
 import { PlayerForm } from "./player-form";
-import { Trophy } from "lucide-react";
+import { LobbyConditionsModal } from "./lobby-conditions-modal";
+import {
+  readLobbyConditionsFromStorage,
+  writeLobbyConditionsToStorage,
+} from "@/lib/lobby-conditions-storage";
+import { Search, SlidersHorizontal, Trophy } from "lucide-react";
 
 interface PlayerSelectionProps {
   players: Player[];
+  playMode?: "classic" | "random";
 }
 
-export function PlayerSelection({ players }: PlayerSelectionProps) {
+export function PlayerSelection({
+  players,
+  playMode = "classic",
+}: PlayerSelectionProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -28,6 +38,22 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
   const [scoreDraft, setScoreDraft] = useState<string>("0");
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [conditionsOpen, setConditionsOpen] = useState(false);
+  const [balanceTeams, setBalanceTeams] = useState(false);
+  const [improvedLanes, setImprovedLanes] = useState(false);
+  const [conditionsHydrated, setConditionsHydrated] = useState(false);
+
+  useEffect(() => {
+    const saved = readLobbyConditionsFromStorage();
+    setBalanceTeams(saved.balanceTeams);
+    setImprovedLanes(saved.improvedLanes);
+    setConditionsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!conditionsHydrated) return;
+    writeLobbyConditionsToStorage({ balanceTeams, improvedLanes });
+  }, [balanceTeams, improvedLanes, conditionsHydrated]);
 
   const canSelectMore = selected.length < 10;
   const hasPlayers = players.length > 0;
@@ -68,7 +94,18 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
     }
     startTransition(async () => {
       try {
-        const result = await createMatchAction({ playerIds: selected });
+        const result =
+          playMode === "random"
+            ? await createRandomMatchAction({
+                playerIds: selected,
+                balanceTeams,
+                improvedLanes,
+              })
+            : await createMatchAction({
+                playerIds: selected,
+                balanceTeams,
+                improvedLanes,
+              });
         setSelected([]);
         router.push(`/match/${result.matchId}`);
       } catch (error) {
@@ -114,60 +151,168 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-2">
-          <span className="text-xs uppercase tracking-[0.35em] text-white/60">
+      <header className="flex flex-col gap-6">
+        <div className="flex max-w-3xl flex-col gap-2">
+          <span className="text-xs uppercase tracking-[0.35em] text-white/55">
             Seleção de jogadores
           </span>
-          <h2 className="font-display text-3xl text-white">Monte sua lobby</h2>
-          <p className="text-sm text-white/65">
-            Escolha dez jogadores para formar dois times balanceados. O sorteio
-            será feito automaticamente com efeitos cinematográficos.
+          <h2 className="font-display text-3xl tracking-tight text-white md:text-[2rem]">
+            Monte sua lobby
+          </h2>
+          {playMode === "random" ? (
+            <p className="text-sm leading-relaxed text-white/70">
+              Modo <span className="text-primary">aleatório</span>: após o
+              sorteio dos times e das rotas, cada jogador recebe um campeão da
+              rota correspondente (dados Meraki), sem repetir campeão na partida
+              quando possível.
+            </p>
+          ) : (
+            <p className="text-sm leading-relaxed text-white/70">
+              Escolha dez jogadores para formar dois times balanceados. O sorteio
+              será feito automaticamente com efeitos cinematográficos.
+            </p>
+          )}
+          <p className="text-xs text-white/50">
+            {playMode === "random" ? (
+              <>
+                Quer só sortear times?{" "}
+                <Link
+                  href="/players"
+                  className="text-accent underline-offset-2 transition hover:text-accent/90 hover:underline"
+                >
+                  Modo clássico
+                </Link>
+              </>
+            ) : (
+              <>
+                Campeões por rota?{" "}
+                <Link
+                  href="/players?mode=random"
+                  className="text-primary underline-offset-2 transition hover:text-primary/90 hover:underline"
+                >
+                  Modo aleatório
+                </Link>
+              </>
+            )}
           </p>
           {!hasPlayers && (
             <p className="text-sm text-white/50">
-              Ainda não há jogadores cadastrados. Adicione novos invocadores para começar.
+              Ainda não há jogadores cadastrados. Adicione novos invocadores para
+              começar.
             </p>
           )}
         </div>
-        <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
-          <Input
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Buscar jogador..."
-            className="bg-white/5 text-sm text-white placeholder:text-white/40"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="whitespace-nowrap"
-            asChild
-          >
-            <Link href="/ranking">
-              <Trophy className="h-4 w-4" />
-              Ranking
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="whitespace-nowrap"
-            asChild
-          >
-            <Link href="/historico">Histórico</Link>
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="whitespace-nowrap"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            Novo jogador
-          </Button>
+
+        <div
+          className="rounded-2xl border border-white/[0.12] bg-[rgba(6,10,18,0.65)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:p-4"
+          role="search"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-0">
+            <div className="min-w-0 flex-1 lg:pr-5">
+              <label
+                htmlFor="lobby-player-search"
+                className="mb-2 block text-[10px] font-medium uppercase tracking-[0.22em] text-white/40"
+              >
+                Buscar na lista
+              </label>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                  aria-hidden
+                />
+                <Input
+                  id="lobby-player-search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Nome do invocador…"
+                  autoComplete="off"
+                  className="h-11 rounded-xl border-white/18 bg-black/35 pl-10 pr-4 text-sm text-white placeholder:text-white/38 focus:border-primary/45 focus:ring-primary/25"
+                />
+              </div>
+            </div>
+
+            <div
+              className="hidden h-14 w-px shrink-0 self-stretch bg-gradient-to-b from-transparent via-white/12 to-transparent lg:block"
+              aria-hidden
+            />
+
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-white/12 to-transparent lg:hidden" />
+
+            <div className="flex flex-col gap-3 lg:shrink-0 lg:pl-5">
+              <span className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/40 lg:text-right">
+                Atalhos
+              </span>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+                <nav
+                  className="flex flex-wrap items-center gap-2"
+                  aria-label="Atalhos da lobby"
+                >
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/[0.18] text-white/90 hover:border-primary/45 hover:bg-white/[0.06]"
+                    asChild
+                  >
+                    <Link href="/ranking" className="gap-1.5">
+                      <Trophy className="h-3.5 w-3.5 opacity-90" />
+                      Ranking
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/[0.18] text-white/90 hover:border-primary/45 hover:bg-white/[0.06]"
+                    asChild
+                  >
+                    <Link href="/historico">Histórico</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="relative border-white/[0.18] text-white/90 hover:border-primary/45 hover:bg-white/[0.06]"
+                    onClick={() => setConditionsOpen(true)}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5 opacity-90" />
+                    Condições
+                    {balanceTeams || improvedLanes ? (
+                      <span
+                        className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_rgba(230,195,87,0.8)]"
+                        aria-hidden
+                      />
+                    ) : null}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-white/[0.18] text-white/90 hover:border-primary/45 hover:bg-white/[0.06]"
+                    asChild
+                  >
+                    <Link href="/analytics/campeoes">Campeões</Link>
+                  </Button>
+                </nav>
+
+                <div className="hidden h-8 w-px shrink-0 bg-white/10 sm:mx-1 sm:block lg:hidden" />
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="w-full border border-white/10 sm:w-auto"
+                  onClick={() => setIsCreateModalOpen(true)}
+                >
+                  Novo jogador
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+      <div className="rounded-3xl border border-white/[0.12] bg-white/[0.04] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
             <span className="text-sm uppercase tracking-[0.25em] text-primary">
@@ -175,15 +320,31 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
             </span>
             <span className="text-xs text-white/50">
               Selecione exatamente dez jogadores para habilitar o sorteio.
+              {balanceTeams ? (
+                <span className="mt-1 block text-primary/90">
+                  Matchmaking balanceado por PDL ativo (Condições).
+                </span>
+              ) : null}
+              {improvedLanes ? (
+                <span className="mt-1 block text-accent/90">
+                  Lanes melhoradas: sem repetir a mesma rota da última partida
+                  encerrada (Condições).
+                </span>
+              ) : null}
             </span>
           </div>
           <Button
             type="button"
             onClick={onSubmitMatch}
             disabled={isPending || selected.length !== 10}
-            className="w-full max-w-[180px]"
+            className="w-full max-w-[200px]"
           >
-            {isPending ? "Sorteando..." : "Jogar"}
+            {isPending
+              ? "Sorteando..."
+              : playMode === "random"
+                ? "Jogar (aleatório)"
+                : "Jogar"
+            }
           </Button>
         </div>
         {selectedPlayers.length > 0 && (
@@ -229,6 +390,15 @@ export function PlayerSelection({ players }: PlayerSelectionProps) {
           </div>
         )}
       </motion.div>
+
+      <LobbyConditionsModal
+        open={conditionsOpen}
+        onOpenChange={setConditionsOpen}
+        balanceTeams={balanceTeams}
+        onBalanceTeamsChange={setBalanceTeams}
+        improvedLanes={improvedLanes}
+        onImprovedLanesChange={setImprovedLanes}
+      />
 
       <AnimatePresence>
         {editingPlayer && (

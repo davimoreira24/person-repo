@@ -32,19 +32,20 @@
 body {
   /* Cor sólida de fallback — evita “buracos” pretos entre camadas animadas */
   background-color: var(--background);
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       ellipse 110% 70% at 50% -15%,
       rgba(42, 148, 244, 0.14),
       transparent 52%
     ),
     /* Gradiente vertical suave (sem parada dura no meio → sem faixa fixa preto/azul) */
     linear-gradient(
-      180deg,
-      #050814 0%,
-      var(--background) 28%,
-      #0a101c 62%,
-      #0e1724 100%
-    );
+        180deg,
+        #050814 0%,
+        var(--background) 28%,
+        #0a101c 62%,
+        #0e1724 100%
+      );
   color: var(--foreground);
   min-height: 100vh;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
