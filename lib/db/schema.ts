@@ -28,6 +28,27 @@ export const players = pgTable(
   }),
 );
 
+export const gameCards = pgTable(
+  "game_cards",
+  {
+    id: serial("id").primaryKey(),
+    slug: varchar("slug", { length: 80 }).notNull().unique(),
+    title: varchar("title", { length: 160 }).notNull(),
+    description: text("description").notNull(),
+    /** URL pública da arte da carta (opcional). */
+    imageUrl: text("image_url"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    slugIdx: index("game_cards_slug_idx").on(table.slug),
+    activeIdx: index("game_cards_active_idx").on(table.active),
+  }),
+);
+
 export const matches = pgTable("matches", {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -38,6 +59,11 @@ export const matches = pgTable("matches", {
   votingSessionId: uuid("voting_session_id"),
   /** classic = só times; random_champions = sorteia campeão por rota (Meraki). */
   gameMode: varchar("game_mode", { length: 32 }).default("classic").notNull(),
+  /** Cartinha de regra sorteada para esta partida (lobby com “cartas ativas”). */
+  selectedGameCardId: integer("selected_game_card_id").references(
+    () => gameCards.id,
+    { onDelete: "set null" },
+  ),
 });
 
 export const matchPlayers = pgTable(
@@ -181,6 +207,7 @@ export const votesRelations = relations(votes, ({ one }) => ({
 
 export const schema = {
   players,
+  gameCards,
   matches,
   matchPlayers,
   matchAwards,
@@ -195,4 +222,5 @@ export type MatchPlayer = typeof matchPlayers.$inferSelect;
 export type MatchAward = typeof matchAwards.$inferSelect;
 export type VotingSession = typeof votingSessions.$inferSelect;
 export type Vote = typeof votes.$inferSelect;
+export type GameCard = typeof gameCards.$inferSelect;
 

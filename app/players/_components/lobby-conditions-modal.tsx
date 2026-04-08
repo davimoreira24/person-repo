@@ -11,6 +11,8 @@ export type LobbyConditionsModalProps = {
   onBalanceTeamsChange: (value: boolean) => void;
   improvedLanes: boolean;
   onImprovedLanesChange: (value: boolean) => void;
+  cartasAtivas: boolean;
+  onCartasAtivasChange: (value: boolean) => void;
 };
 
 export function LobbyConditionsModal({
@@ -20,6 +22,8 @@ export function LobbyConditionsModal({
   onBalanceTeamsChange,
   improvedLanes,
   onImprovedLanesChange,
+  cartasAtivas,
+  onCartasAtivasChange,
 }: LobbyConditionsModalProps) {
   return (
     <AnimatePresence>
@@ -105,6 +109,28 @@ export function LobbyConditionsModal({
                     topo, selva, meio, atirador, sup). Se não houver histórico,
                     a rota é livre. Se for impossível satisfazer todos, o sorteio
                     volta ao aleatório comum.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-primary/35 hover:bg-white/[0.06]">
+                <input
+                  type="checkbox"
+                  checked={cartasAtivas}
+                  onChange={(e) => onCartasAtivasChange(e.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-white/30 bg-black/40 text-primary focus:ring-primary"
+                />
+                <span className="flex flex-col gap-1">
+                  <span className="font-medium text-white">
+                    Cartas ativas
+                  </span>
+                  <span className="text-xs leading-relaxed text-white/50">
+                    Ao iniciar ou re-jogar, sorteia uma cartinha de regra da tabela
+                    <code className="mx-1 rounded bg-white/10 px-1 py-0.5 text-[10px]">
+                      game_cards
+                    </code>
+                    (Supabase) com animação. Cadastre, edite ou desative cartas
+                    por lá — o app só lê as ativas.
                   </span>
                 </span>
               </label>

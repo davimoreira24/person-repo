@@ -280,6 +280,32 @@ export function TeamDisplay({
 }: TeamDisplayProps) {
   return (
     <div className="relative flex flex-col gap-8 rounded-3xl border border-white/10 bg-gradient-to-b from-[#04070F]/95 via-[#060A13]/92 to-[#090E18]/95 p-6">
+      {match.selectedCard ? (
+        <div className="overflow-hidden rounded-2xl border border-primary/35 bg-gradient-to-r from-primary/10 via-[#1a1510]/90 to-primary/10 shadow-[0_0_30px_rgba(230,195,87,0.12)]">
+          {match.selectedCard.imageUrl ? (
+            <div className="relative aspect-[21/9] max-h-40 w-full overflow-hidden bg-black/30 sm:max-h-48">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={match.selectedCard.imageUrl}
+                alt={match.selectedCard.title}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0d1218] via-transparent to-transparent" />
+            </div>
+          ) : null}
+          <div className="p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-primary">
+              Cartinha da partida
+            </p>
+            <h3 className="mt-1 font-display text-xl text-white">
+              {match.selectedCard.title}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-white/75">
+              {match.selectedCard.description}
+            </p>
+          </div>
+        </div>
+      ) : null}
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="text-xs uppercase tracking-[0.45em] text-white/50">
           Campos da Justiça

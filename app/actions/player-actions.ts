@@ -18,6 +18,11 @@ import { partitionTenPlayersByScore } from "@/lib/matchmaking/balance-teams";
 import { assignTeamLaneOrderAvoidingRepeat } from "@/lib/matchmaking/improved-lanes";
 import { shuffle } from "@/lib/matchmaking/shuffle-crypto";
 import { getLastLaneIndexByPlayerId } from "@/lib/queries/last-lane";
+import {
+  buildCardRevealPayload,
+  pickRandomActiveGameCard,
+  type CardRevealPayload,
+} from "@/lib/queries/game-cards";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
@@ -37,6 +42,8 @@ const createMatchInputSchema = z.object({
     .refine((ids) => new Set(ids).size === 10, "Dez jogadores distintos são obrigatórios."),
   balanceTeams: z.boolean().optional(),
   improvedLanes: z.boolean().optional(),
+  /** Sorteia uma cartinha de regra (tabela `game_cards`). */
+  cartasAtivas: z.boolean().optional(),
 });
 
 const completeMatchSchema = z.object({
@@ -50,6 +57,7 @@ const replayMatchInputSchema = z.object({
   matchId: z.number().int().positive(),
   balanceTeams: z.boolean().optional(),
   improvedLanes: z.boolean().optional(),
+  cartasAtivas: z.boolean().optional(),
 });
 
 export async function createPlayerAction(formData: FormData) {
@@ -177,15 +185,32 @@ export async function createMatchAction(input: unknown) {
 
   const balanceTeams = parsed.data.balanceTeams === true;
   const improvedLanes = parsed.data.improvedLanes === true;
+  const cartasAtivas = parsed.data.cartasAtivas === true;
   const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
     parsed.data.playerIds,
     balanceTeams,
     improvedLanes,
   );
 
+  let selectedGameCardId: number | null = null;
+  let cardReveal: CardRevealPayload | null = null;
+  if (cartasAtivas) {
+    const picked = await pickRandomActiveGameCard();
+    if (!picked) {
+      throw new Error(
+        "Cartas ativas ligadas, mas não há cartas no banco (ou todas inativas). Cadastre em game_cards (Supabase).",
+      );
+    }
+    selectedGameCardId = picked.id;
+    cardReveal = await buildCardRevealPayload(picked);
+  }
+
   const [match] = await db
     .insert(matches)
-    .values({ gameMode: MATCH_GAME_CLASSIC })
+    .values({
+      gameMode: MATCH_GAME_CLASSIC,
+      selectedGameCardId,
+    })
     .returning({ id: matches.id });
 
   const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
@@ -204,6 +229,7 @@ export async function createMatchAction(input: unknown) {
     matchId: match.id,
     teamOne: teamOneShuffled,
     teamTwo: teamTwoShuffled,
+    cardReveal,
   };
 }
 
@@ -219,15 +245,32 @@ export async function createRandomMatchAction(input: unknown) {
 
   const balanceTeams = parsed.data.balanceTeams === true;
   const improvedLanes = parsed.data.improvedLanes === true;
+  const cartasAtivas = parsed.data.cartasAtivas === true;
   const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
     parsed.data.playerIds,
     balanceTeams,
     improvedLanes,
   );
 
+  let selectedGameCardId: number | null = null;
+  let cardReveal: CardRevealPayload | null = null;
+  if (cartasAtivas) {
+    const picked = await pickRandomActiveGameCard();
+    if (!picked) {
+      throw new Error(
+        "Cartas ativas ligadas, mas não há cartas no banco (ou todas inativas). Cadastre em game_cards (Supabase).",
+      );
+    }
+    selectedGameCardId = picked.id;
+    cardReveal = await buildCardRevealPayload(picked);
+  }
+
   const [match] = await db
     .insert(matches)
-    .values({ gameMode: MATCH_GAME_RANDOM_CHAMPIONS })
+    .values({
+      gameMode: MATCH_GAME_RANDOM_CHAMPIONS,
+      selectedGameCardId,
+    })
     .returning({ id: matches.id });
 
   const orderedIds = [...teamOneShuffled, ...teamTwoShuffled];
@@ -248,6 +291,7 @@ export async function createRandomMatchAction(input: unknown) {
     matchId: match.id,
     teamOne: teamOneShuffled,
     teamTwo: teamTwoShuffled,
+    cardReveal,
   };
 }
 
@@ -397,6 +441,7 @@ export async function replayMatchAction(input: unknown) {
   const { matchId } = parsed.data;
   const balanceTeams = parsed.data.balanceTeams === true;
   const improvedLanes = parsed.data.improvedLanes === true;
+  const cartasAtivas = parsed.data.cartasAtivas === true;
 
   const existingRows = await db
     .select({ id: matches.id, gameMode: matches.gameMode })
@@ -428,10 +473,24 @@ export async function replayMatchAction(input: unknown) {
     improvedLanes,
   );
 
+  let selectedGameCardId: number | null = null;
+  let cardReveal: CardRevealPayload | null = null;
+  if (cartasAtivas) {
+    const picked = await pickRandomActiveGameCard();
+    if (!picked) {
+      throw new Error(
+        "Cartas ativas ligadas, mas não há cartas no banco (ou todas inativas). Cadastre em game_cards (Supabase).",
+      );
+    }
+    selectedGameCardId = picked.id;
+    cardReveal = await buildCardRevealPayload(picked);
+  }
+
   const [newMatch] = await db
     .insert(matches)
     .values({
       gameMode: isRandom ? MATCH_GAME_RANDOM_CHAMPIONS : MATCH_GAME_CLASSIC,
+      selectedGameCardId,
     })
     .returning({ id: matches.id });
 
@@ -470,5 +529,5 @@ export async function replayMatchAction(input: unknown) {
   revalidatePath("/players");
   revalidatePath("/analytics/campeoes");
 
-  return { matchId: newMatch.id };
+  return { matchId: newMatch.id, cardReveal };
 }

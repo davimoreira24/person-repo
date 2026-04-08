@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  gameCards,
   matchAwards,
   matchPlayers,
   matches,
@@ -183,12 +184,22 @@ export type MatchTeamPlayer = {
   lossStreak: number;
 };
 
+export type MatchSelectedCard = {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  imageUrl: string | null;
+};
+
 export interface MatchWithTeams {
   id: number;
   createdAt: Date | null;
   completedAt: Date | null;
   winnerTeam: 1 | 2 | null;
   gameMode: string;
+  /** Cartinha sorteada para esta partida (se a lobby tinha “cartas ativas”). */
+  selectedCard: MatchSelectedCard | null;
   awards: {
     mvpPlayerId: number | null;
     dudPlayerId: number | null;
@@ -207,6 +218,11 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       completedAt: matches.completedAt,
       winnerTeam: matches.winnerTeam,
       gameMode: matches.gameMode,
+      selectedGameCardId: matches.selectedGameCardId,
+      cardSlug: gameCards.slug,
+      cardTitle: gameCards.title,
+      cardDescription: gameCards.description,
+      cardImageUrl: gameCards.imageUrl,
       playerId: players.id,
       name: players.name,
       photoUrl: players.photoUrl,
@@ -217,6 +233,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       championName: matchPlayers.championName,
     })
     .from(matches)
+    .leftJoin(gameCards, eq(matches.selectedGameCardId, gameCards.id))
     .leftJoin(matchPlayers, eq(matchPlayers.matchId, matches.id))
     .leftJoin(players, eq(matchPlayers.playerId, players.id))
     .where(eq(matches.id, matchId))
@@ -244,6 +261,19 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
   };
 
   const winnerTeam = (matchInfo.winnerTeam as 1 | 2 | null) ?? null;
+
+  const selectedCard: MatchSelectedCard | null =
+    matchInfo.selectedGameCardId != null &&
+    matchInfo.cardSlug != null &&
+    matchInfo.cardTitle != null
+      ? {
+          id: matchInfo.selectedGameCardId,
+          slug: matchInfo.cardSlug,
+          title: matchInfo.cardTitle,
+          description: matchInfo.cardDescription ?? "",
+          imageUrl: matchInfo.cardImageUrl ?? null,
+        }
+      : null;
 
   const teams = {
     1: [] as MatchTeamPlayer[],
@@ -277,6 +307,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
     completedAt: matchInfo.completedAt,
     winnerTeam,
     gameMode: matchInfo.gameMode ?? "classic",
+    selectedCard,
     awards: awardMap,
     teams,
   };

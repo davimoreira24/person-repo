@@ -19,6 +19,8 @@ import {
   readLobbyConditionsFromStorage,
   writeLobbyConditionsToStorage,
 } from "@/lib/lobby-conditions-storage";
+import type { CardRevealPayload } from "@/lib/match/game-card-types";
+import { GameCardRevealOverlay } from "@/components/game-card-reveal-overlay";
 import { Search, SlidersHorizontal, Trophy } from "lucide-react";
 
 interface PlayerSelectionProps {
@@ -41,19 +43,29 @@ export function PlayerSelection({
   const [conditionsOpen, setConditionsOpen] = useState(false);
   const [balanceTeams, setBalanceTeams] = useState(false);
   const [improvedLanes, setImprovedLanes] = useState(false);
+  const [cartasAtivas, setCartasAtivas] = useState(false);
   const [conditionsHydrated, setConditionsHydrated] = useState(false);
+  const [pendingCardReveal, setPendingCardReveal] = useState<{
+    matchId: number;
+    payload: CardRevealPayload;
+  } | null>(null);
 
   useEffect(() => {
     const saved = readLobbyConditionsFromStorage();
     setBalanceTeams(saved.balanceTeams);
     setImprovedLanes(saved.improvedLanes);
+    setCartasAtivas(saved.cartasAtivas);
     setConditionsHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!conditionsHydrated) return;
-    writeLobbyConditionsToStorage({ balanceTeams, improvedLanes });
-  }, [balanceTeams, improvedLanes, conditionsHydrated]);
+    writeLobbyConditionsToStorage({
+      balanceTeams,
+      improvedLanes,
+      cartasAtivas,
+    });
+  }, [balanceTeams, improvedLanes, cartasAtivas, conditionsHydrated]);
 
   const canSelectMore = selected.length < 10;
   const hasPlayers = players.length > 0;
@@ -100,12 +112,21 @@ export function PlayerSelection({
                 playerIds: selected,
                 balanceTeams,
                 improvedLanes,
+                cartasAtivas,
               })
             : await createMatchAction({
                 playerIds: selected,
                 balanceTeams,
                 improvedLanes,
+                cartasAtivas,
               });
+        if (result.cardReveal) {
+          setPendingCardReveal({
+            matchId: result.matchId,
+            payload: result.cardReveal,
+          });
+          return;
+        }
         setSelected([]);
         router.push(`/match/${result.matchId}`);
       } catch (error) {
@@ -277,7 +298,7 @@ export function PlayerSelection({
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5 opacity-90" />
                     Condições
-                    {balanceTeams || improvedLanes ? (
+                    {balanceTeams || improvedLanes || cartasAtivas ? (
                       <span
                         className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_rgba(230,195,87,0.8)]"
                         aria-hidden
@@ -331,21 +352,29 @@ export function PlayerSelection({
                   encerrada (Condições).
                 </span>
               ) : null}
+              {cartasAtivas ? (
+                <span className="mt-1 block text-primary/90">
+                  Cartas ativas: uma cartinha de regra será sorteada ao iniciar
+                  (Condições).
+                </span>
+              ) : null}
             </span>
           </div>
-          <Button
-            type="button"
-            onClick={onSubmitMatch}
-            disabled={isPending || selected.length !== 10}
-            className="w-full max-w-[200px]"
-          >
-            {isPending
-              ? "Sorteando..."
-              : playMode === "random"
-                ? "Jogar (aleatório)"
-                : "Jogar"
-            }
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <Button
+              type="button"
+              onClick={onSubmitMatch}
+              disabled={isPending || selected.length !== 10}
+              className="w-full max-w-[200px] sm:shrink-0"
+            >
+              {isPending
+                ? "Sorteando..."
+                : playMode === "random"
+                  ? "Jogar (aleatório)"
+                  : "Jogar"
+              }
+            </Button>
+          </div>
         </div>
         {selectedPlayers.length > 0 && (
           <div className="mt-4 grid gap-2 text-xs text-white/60 md:grid-cols-2">
@@ -398,7 +427,24 @@ export function PlayerSelection({
         onBalanceTeamsChange={setBalanceTeams}
         improvedLanes={improvedLanes}
         onImprovedLanesChange={setImprovedLanes}
+        cartasAtivas={cartasAtivas}
+        onCartasAtivasChange={setCartasAtivas}
       />
+
+      <AnimatePresence>
+        {pendingCardReveal ? (
+          <GameCardRevealOverlay
+            key="card-reveal"
+            payload={pendingCardReveal.payload}
+            onContinue={() => {
+              const id = pendingCardReveal.matchId;
+              setPendingCardReveal(null);
+              setSelected([]);
+              router.push(`/match/${id}`);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {editingPlayer && (
