@@ -23,6 +23,7 @@ import {
   pickRandomActiveGameCard,
   type CardRevealPayload,
 } from "@/lib/queries/game-cards";
+import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
@@ -181,6 +182,12 @@ export async function createMatchAction(input: unknown) {
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Seleção inválida");
+  }
+
+  if (isRandomOnlyLobbyPeriod()) {
+    throw new Error(
+      "Neste fim de semana (10–12 abr 2026) só está disponível o modo aleatório. Use a página com modo aleatório.",
+    );
   }
 
   const balanceTeams = parsed.data.balanceTeams === true;
@@ -454,7 +461,10 @@ export async function replayMatchAction(input: unknown) {
   }
 
   const sourceGameMode = existingRows[0]!.gameMode;
-  const isRandom = sourceGameMode === MATCH_GAME_RANDOM_CHAMPIONS;
+  let isRandom = sourceGameMode === MATCH_GAME_RANDOM_CHAMPIONS;
+  if (isRandomOnlyLobbyPeriod()) {
+    isRandom = true;
+  }
 
   const playerRows = await db
     .select({ playerId: matchPlayers.playerId })

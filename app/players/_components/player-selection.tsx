@@ -26,11 +26,14 @@ import { Search, SlidersHorizontal, Trophy } from "lucide-react";
 interface PlayerSelectionProps {
   players: Player[];
   playMode?: "classic" | "random";
+  /** 10–12 abr 2026: só modo aleatório (horário Lisboa). */
+  randomOnlyWeekend?: boolean;
 }
 
 export function PlayerSelection({
   players,
   playMode = "classic",
+  randomOnlyWeekend = false,
 }: PlayerSelectionProps) {
   const router = useRouter();
   const [selected, setSelected] = useState<number[]>([]);
@@ -193,29 +196,38 @@ export function PlayerSelection({
               será feito automaticamente com efeitos cinematográficos.
             </p>
           )}
-          <p className="text-xs text-white/50">
-            {playMode === "random" ? (
-              <>
-                Quer só sortear times?{" "}
-                <Link
-                  href="/players"
-                  className="text-accent underline-offset-2 transition hover:text-accent/90 hover:underline"
-                >
-                  Modo clássico
-                </Link>
-              </>
-            ) : (
-              <>
-                Campeões por rota?{" "}
-                <Link
-                  href="/players?mode=random"
-                  className="text-primary underline-offset-2 transition hover:text-primary/90 hover:underline"
-                >
-                  Modo aleatório
-                </Link>
-              </>
-            )}
-          </p>
+          {randomOnlyWeekend ? (
+            <p className="rounded-xl border border-primary/35 bg-primary/10 px-3 py-2 text-xs leading-relaxed text-primary/95">
+              <span className="font-medium">Fim de semana especial:</span> até
+              domingo, 12 de abril, 23h59 (horário de Lisboa), só o{" "}
+              <span className="text-primary">modo aleatório</span> está
+              disponível. O modo clássico volta na segunda-feira.
+            </p>
+          ) : (
+            <p className="text-xs text-white/50">
+              {playMode === "random" ? (
+                <>
+                  Quer só sortear times?{" "}
+                  <Link
+                    href="/players"
+                    className="text-accent underline-offset-2 transition hover:text-accent/90 hover:underline"
+                  >
+                    Modo clássico
+                  </Link>
+                </>
+              ) : (
+                <>
+                  Campeões por rota?{" "}
+                  <Link
+                    href="/players?mode=random"
+                    className="text-primary underline-offset-2 transition hover:text-primary/90 hover:underline"
+                  >
+                    Modo aleatório
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           {!hasPlayers && (
             <p className="text-sm text-white/50">
               Ainda não há jogadores cadastrados. Adicione novos invocadores para
