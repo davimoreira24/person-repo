@@ -12,6 +12,7 @@ import { playerBucket, supabaseAdmin } from "@/lib/supabase/server";
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   MATCH_GAME_CLASSIC,
+  MATCH_GAME_DRAFT,
   MATCH_GAME_RANDOM_CHAMPIONS,
 } from "@/lib/match-game-mode";
 import { partitionTenPlayersByScore } from "@/lib/matchmaking/balance-teams";
@@ -45,6 +46,23 @@ const createMatchInputSchema = z.object({
   improvedLanes: z.boolean().optional(),
   /** Sorteia uma cartinha de regra (tabela `game_cards`). */
   cartasAtivas: z.boolean().optional(),
+  /** Regra: sorteia 1 campeão por rota (Meraki). */
+  championsRandom: z.boolean().optional(),
+});
+
+const teamFiveSchema = z
+  .array(z.number().int().positive())
+  .length(5)
+  .refine((ids) => new Set(ids).size === 5, "Cinco jogadores distintos por time.");
+
+const createDraftMatchInputSchema = z.object({
+  teamOneIds: teamFiveSchema,
+  teamTwoIds: teamFiveSchema,
+  captainOneId: z.number().int().positive(),
+  captainTwoId: z.number().int().positive(),
+  improvedLanes: z.boolean().optional(),
+  cartasAtivas: z.boolean().optional(),
+  championsRandom: z.boolean().optional(),
 });
 
 const completeMatchSchema = z.object({
@@ -59,6 +77,7 @@ const replayMatchInputSchema = z.object({
   balanceTeams: z.boolean().optional(),
   improvedLanes: z.boolean().optional(),
   cartasAtivas: z.boolean().optional(),
+  championsRandom: z.boolean().optional(),
 });
 
 export async function createPlayerAction(formData: FormData) {
@@ -184,9 +203,11 @@ export async function createMatchAction(input: unknown) {
     throw new Error(parsed.error.issues[0]?.message ?? "Seleção inválida");
   }
 
-  if (isRandomOnlyLobbyPeriod()) {
+  const championsRandom = parsed.data.championsRandom === true;
+
+  if (isRandomOnlyLobbyPeriod() && !championsRandom) {
     throw new Error(
-      "Neste fim de semana (10–12 abr 2026) só está disponível o modo aleatório. Use a página com modo aleatório.",
+      "Neste fim de semana (10–12 abr 2026) o clássico só roda com a regra 'Campeões aleatórios'. Ligue a regra em Condições ou use o modo Draft.",
     );
   }
 
@@ -216,21 +237,32 @@ export async function createMatchAction(input: unknown) {
     .insert(matches)
     .values({
       gameMode: MATCH_GAME_CLASSIC,
+      championsRandom,
       selectedGameCardId,
     })
     .returning({ id: matches.id });
 
-  const entries = [...teamOneShuffled, ...teamTwoShuffled].map(
-    (playerId, index) => ({
-      matchId: match.id,
-      playerId,
-      team: index < 5 ? 1 : 2,
-    })
-  );
+  const orderedIds = [...teamOneShuffled, ...teamTwoShuffled];
+  const championAssignments = championsRandom
+    ? pickRandomChampionsForMatch(await fetchChampionCatalog())
+    : null;
+
+  const entries = orderedIds.map((playerId, index) => ({
+    matchId: match.id,
+    playerId,
+    team: index < 5 ? 1 : 2,
+    championKey: championAssignments ? championAssignments[index]!.key : null,
+    championName: championAssignments
+      ? championAssignments[index]!.name
+      : null,
+  }));
 
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${match.id}`);
+  if (championsRandom) {
+    revalidatePath("/analytics/campeoes");
+  }
 
   return {
     matchId: match.id,
@@ -240,24 +272,59 @@ export async function createMatchAction(input: unknown) {
   };
 }
 
+/** Compat: alias para callers antigos que ainda chamam `createRandomMatchAction`. */
 export async function createRandomMatchAction(input: unknown) {
-  const parsed = createMatchInputSchema.safeParse(input);
+  if (input && typeof input === "object") {
+    return createMatchAction({ ...(input as object), championsRandom: true });
+  }
+  return createMatchAction({ championsRandom: true });
+}
+
+/**
+ * Cria uma partida no modo Draft: os times já vêm decididos pelos capitães.
+ * As lanes são sorteadas dentro de cada time (com ou sem "Lanes melhoradas").
+ * `championsRandom` continua opcional (regra independente).
+ */
+export async function createDraftMatchAction(input: unknown) {
+  const parsed = createDraftMatchInputSchema.safeParse(input);
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Seleção inválida");
+    throw new Error(parsed.error.issues[0]?.message ?? "Draft inválido");
   }
 
-  const catalog = await fetchChampionCatalog();
-  const championPicks = pickRandomChampionsForMatch(catalog);
+  const {
+    teamOneIds,
+    teamTwoIds,
+    captainOneId,
+    captainTwoId,
+  } = parsed.data;
 
-  const balanceTeams = parsed.data.balanceTeams === true;
+  const allIds = [...teamOneIds, ...teamTwoIds];
+  if (new Set(allIds).size !== 10) {
+    throw new Error("Os 10 jogadores precisam ser distintos entre os dois times.");
+  }
+  if (!teamOneIds.includes(captainOneId)) {
+    throw new Error("Capitão 1 precisa estar no time 1.");
+  }
+  if (!teamTwoIds.includes(captainTwoId)) {
+    throw new Error("Capitão 2 precisa estar no time 2.");
+  }
+
   const improvedLanes = parsed.data.improvedLanes === true;
   const cartasAtivas = parsed.data.cartasAtivas === true;
-  const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
-    parsed.data.playerIds,
-    balanceTeams,
-    improvedLanes,
-  );
+  const championsRandom = parsed.data.championsRandom === true;
+
+  let teamOneOrdered: number[];
+  let teamTwoOrdered: number[];
+
+  if (improvedLanes) {
+    const lastLanes = await getLastLaneIndexByPlayerId(allIds);
+    teamOneOrdered = assignTeamLaneOrderAvoidingRepeat(teamOneIds, lastLanes);
+    teamTwoOrdered = assignTeamLaneOrderAvoidingRepeat(teamTwoIds, lastLanes);
+  } else {
+    teamOneOrdered = shuffle([...teamOneIds]);
+    teamTwoOrdered = shuffle([...teamTwoIds]);
+  }
 
   let selectedGameCardId: number | null = null;
   let cardReveal: CardRevealPayload | null = null;
@@ -275,29 +342,40 @@ export async function createRandomMatchAction(input: unknown) {
   const [match] = await db
     .insert(matches)
     .values({
-      gameMode: MATCH_GAME_RANDOM_CHAMPIONS,
+      gameMode: MATCH_GAME_DRAFT,
+      championsRandom,
       selectedGameCardId,
     })
     .returning({ id: matches.id });
 
-  const orderedIds = [...teamOneShuffled, ...teamTwoShuffled];
+  const orderedIds = [...teamOneOrdered, ...teamTwoOrdered];
+  const championAssignments = championsRandom
+    ? pickRandomChampionsForMatch(await fetchChampionCatalog())
+    : null;
+
   const entries = orderedIds.map((playerId, index) => ({
     matchId: match.id,
     playerId,
     team: index < 5 ? 1 : 2,
-    championKey: championPicks[index]!.key,
-    championName: championPicks[index]!.name,
+    championKey: championAssignments ? championAssignments[index]!.key : null,
+    championName: championAssignments
+      ? championAssignments[index]!.name
+      : null,
   }));
 
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${match.id}`);
-  revalidatePath("/analytics/campeoes");
+  if (championsRandom) {
+    revalidatePath("/analytics/campeoes");
+  }
 
   return {
     matchId: match.id,
-    teamOne: teamOneShuffled,
-    teamTwo: teamTwoShuffled,
+    teamOne: teamOneOrdered,
+    teamTwo: teamTwoOrdered,
+    captainOneId,
+    captainTwoId,
     cardReveal,
   };
 }
@@ -460,14 +538,12 @@ export async function replayMatchAction(input: unknown) {
     throw new Error("Partida não encontrada para re-jogar.");
   }
 
+  const championsRandom = parsed.data.championsRandom === true;
   const sourceGameMode = existingRows[0]!.gameMode;
-  let isRandom = sourceGameMode === MATCH_GAME_RANDOM_CHAMPIONS;
-  if (isRandomOnlyLobbyPeriod()) {
-    isRandom = true;
-  }
+  const isDraftSource = sourceGameMode === MATCH_GAME_DRAFT;
 
   const playerRows = await db
-    .select({ playerId: matchPlayers.playerId })
+    .select({ playerId: matchPlayers.playerId, team: matchPlayers.team })
     .from(matchPlayers)
     .where(eq(matchPlayers.matchId, matchId))
     .orderBy(asc(matchPlayers.id));
@@ -477,11 +553,38 @@ export async function replayMatchAction(input: unknown) {
   }
 
   const playerIds = playerRows.map((row) => row.playerId);
-  const { teamOneShuffled, teamTwoShuffled } = await buildShuffledTeams(
-    playerIds,
-    balanceTeams,
-    improvedLanes,
-  );
+
+  let teamOneOrdered: number[];
+  let teamTwoOrdered: number[];
+
+  if (isDraftSource) {
+    const team1Ids = playerRows
+      .filter((r) => r.team === 1)
+      .map((r) => r.playerId);
+    const team2Ids = playerRows
+      .filter((r) => r.team === 2)
+      .map((r) => r.playerId);
+    if (team1Ids.length !== 5 || team2Ids.length !== 5) {
+      throw new Error("Partida draft anterior está com times inconsistentes.");
+    }
+    if (improvedLanes) {
+      const lastLanes = await getLastLaneIndexByPlayerId(playerIds);
+      teamOneOrdered = assignTeamLaneOrderAvoidingRepeat(team1Ids, lastLanes);
+      teamTwoOrdered = assignTeamLaneOrderAvoidingRepeat(team2Ids, lastLanes);
+    } else {
+      teamOneOrdered = shuffle([...team1Ids]);
+      teamTwoOrdered = shuffle([...team2Ids]);
+    }
+  } else {
+    if (isRandomOnlyLobbyPeriod() && !championsRandom) {
+      throw new Error(
+        "Neste fim de semana o clássico só roda com 'Campeões aleatórios'. Ligue a regra em Condições.",
+      );
+    }
+    const built = await buildShuffledTeams(playerIds, balanceTeams, improvedLanes);
+    teamOneOrdered = built.teamOneShuffled;
+    teamTwoOrdered = built.teamTwoShuffled;
+  }
 
   let selectedGameCardId: number | null = null;
   let cardReveal: CardRevealPayload | null = null;
@@ -499,45 +602,34 @@ export async function replayMatchAction(input: unknown) {
   const [newMatch] = await db
     .insert(matches)
     .values({
-      gameMode: isRandom ? MATCH_GAME_RANDOM_CHAMPIONS : MATCH_GAME_CLASSIC,
+      gameMode: isDraftSource ? MATCH_GAME_DRAFT : MATCH_GAME_CLASSIC,
+      championsRandom,
       selectedGameCardId,
     })
     .returning({ id: matches.id });
 
-  let entries: {
-    matchId: number;
-    playerId: number;
-    team: number;
-    championKey?: string | null;
-    championName?: string | null;
-  }[];
+  const orderedIds = [...teamOneOrdered, ...teamTwoOrdered];
+  const championAssignments = championsRandom
+    ? pickRandomChampionsForMatch(await fetchChampionCatalog())
+    : null;
 
-  if (isRandom) {
-    const catalog = await fetchChampionCatalog();
-    const championPicks = pickRandomChampionsForMatch(catalog);
-    const ordered = [...teamOneShuffled, ...teamTwoShuffled];
-    entries = ordered.map((playerId, index) => ({
-      matchId: newMatch.id,
-      playerId,
-      team: index < 5 ? 1 : 2,
-      championKey: championPicks[index]!.key,
-      championName: championPicks[index]!.name,
-    }));
-  } else {
-    entries = [...teamOneShuffled, ...teamTwoShuffled].map(
-      (playerId, index) => ({
-        matchId: newMatch.id,
-        playerId,
-        team: index < 5 ? 1 : 2,
-      }),
-    );
-  }
+  const entries = orderedIds.map((playerId, index) => ({
+    matchId: newMatch.id,
+    playerId,
+    team: index < 5 ? 1 : 2,
+    championKey: championAssignments ? championAssignments[index]!.key : null,
+    championName: championAssignments
+      ? championAssignments[index]!.name
+      : null,
+  }));
 
   await db.insert(matchPlayers).values(entries);
 
   revalidatePath(`/match/${newMatch.id}`);
   revalidatePath("/players");
-  revalidatePath("/analytics/campeoes");
+  if (championsRandom) {
+    revalidatePath("/analytics/campeoes");
+  }
 
   return { matchId: newMatch.id, cardReveal };
 }

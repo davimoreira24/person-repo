@@ -1,6 +1,8 @@
 /**
  * Promo temporária: fim de semana 10–12 abr 2026 (sexta–domingo), até 23:59:59 em
- * Europe/Lisboa — só o modo aleatório (campeões por rota) fica disponível na lobby.
+ * Europe/Lisboa. O modo clássico **puro** fica em pausa nesse período: para jogar
+ * clássico, é obrigatório ligar a regra "Campeões aleatórios". O modo Draft fica
+ * livre, com ou sem a regra.
  */
 const TIME_ZONE = "Europe/Lisbon";
 

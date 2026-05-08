@@ -198,6 +198,8 @@ export interface MatchWithTeams {
   completedAt: Date | null;
   winnerTeam: 1 | 2 | null;
   gameMode: string;
+  /** Regra "Campeões aleatórios" (nova). Se for partida legada `random_champions`, vem true também. */
+  championsRandom: boolean;
   /** Cartinha sorteada para esta partida (se a lobby tinha “cartas ativas”). */
   selectedCard: MatchSelectedCard | null;
   awards: {
@@ -218,6 +220,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       completedAt: matches.completedAt,
       winnerTeam: matches.winnerTeam,
       gameMode: matches.gameMode,
+      championsRandom: matches.championsRandom,
       selectedGameCardId: matches.selectedGameCardId,
       cardSlug: gameCards.slug,
       cardTitle: gameCards.title,
@@ -301,12 +304,15 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
     });
   });
 
+  const gameMode = matchInfo.gameMode ?? "classic";
   return {
     id: matchInfo.matchId,
     createdAt: matchInfo.createdAt,
     completedAt: matchInfo.completedAt,
     winnerTeam,
-    gameMode: matchInfo.gameMode ?? "classic",
+    gameMode,
+    championsRandom:
+      matchInfo.championsRandom === true || gameMode === "random_champions",
     selectedCard,
     awards: awardMap,
     teams,
@@ -328,6 +334,7 @@ export type MatchHistoryEntry = {
   completedAt: Date | null;
   winnerTeam: 1 | 2;
   gameMode: string;
+  championsRandom: boolean;
   mvpName: string | null;
   dudName: string | null;
   team1Names: string[];
@@ -344,6 +351,7 @@ export async function getCompletedMatchesHistory(
       completedAt: matches.completedAt,
       winnerTeam: matches.winnerTeam,
       gameMode: matches.gameMode,
+      championsRandom: matches.championsRandom,
     })
     .from(matches)
     .where(isNotNull(matches.winnerTeam))
@@ -410,11 +418,14 @@ export async function getCompletedMatchesHistory(
     const wt = m.winnerTeam as 1 | 2;
     const awards = awardsByMatch.get(m.id);
     const teams = teamsByMatch.get(m.id);
+    const gameMode = m.gameMode ?? "classic";
     return {
       id: m.id,
       completedAt: m.completedAt,
       winnerTeam: wt,
-      gameMode: m.gameMode ?? "classic",
+      gameMode,
+      championsRandom:
+        m.championsRandom === true || gameMode === "random_champions",
       mvpName: awards?.mvp ?? null,
       dudName: awards?.dud ?? null,
       team1Names: teams?.[1] ?? [],

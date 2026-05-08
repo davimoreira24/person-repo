@@ -57,8 +57,13 @@ export const matches = pgTable("matches", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   winnerTeam: integer("winner_team"),
   votingSessionId: uuid("voting_session_id"),
-  /** classic = só times; random_champions = sorteia campeão por rota (Meraki). */
+  /**
+   * 'classic' = sorteio simples; 'draft' = capitães escolhem times; 'random_champions' (legado).
+   * A regra "campeões aleatórios" agora vive em `champions_random`.
+   */
   gameMode: varchar("game_mode", { length: 32 }).default("classic").notNull(),
+  /** Regra: sorteia campeão por rota (Meraki). Pode combinar com qualquer modo. */
+  championsRandom: boolean("champions_random").default(false).notNull(),
   /** Cartinha de regra sorteada para esta partida (lobby com “cartas ativas”). */
   selectedGameCardId: integer("selected_game_card_id").references(
     () => gameCards.id,

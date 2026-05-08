@@ -79,7 +79,12 @@ export function MatchHistoryList({ entries }: MatchHistoryListProps) {
                   <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
                     {winnerLabel} venceu
                   </span>
-                  {m.gameMode === "random_champions" && (
+                  {m.gameMode === "draft" && (
+                    <span className="rounded-full border border-primary/40 bg-primary/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      Draft
+                    </span>
+                  )}
+                  {m.championsRandom && (
                     <span className="rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
                       Aleatório
                     </span>

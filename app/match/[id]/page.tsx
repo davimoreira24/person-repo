@@ -125,10 +125,27 @@ export default async function MatchPage({ params }: MatchPageProps) {
           <p className="text-sm text-white/60">
             Criada em {formatDateTime(matchForView.createdAt)}
           </p>
-          {matchForView.gameMode === "random_champions" && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {matchForView.gameMode === "draft" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/15 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                Draft
+              </span>
+            )}
+            {matchForView.championsRandom && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-accent/45 bg-accent/15 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                Campeões aleatórios
+              </span>
+            )}
+          </div>
+          {matchForView.championsRandom && (
             <p className="text-sm text-primary/90">
-              Modo aleatório: um campeão compatível com cada rota foi sorteado
-              automaticamente.
+              Um campeão compatível com cada rota foi sorteado automaticamente.
+            </p>
+          )}
+          {matchForView.gameMode === "draft" && (
+            <p className="text-sm text-primary/90">
+              Times escolhidos por capitães; lanes sorteadas dentro de cada
+              time.
             </p>
           )}
         </div>
@@ -153,10 +170,20 @@ export default async function MatchPage({ params }: MatchPageProps) {
                 PDLs ao todo)
               </span>
             )}
-            <div className="mt-2 flex flex-wrap gap-3">
-              <ReplayMatchButton matchId={matchForView.id} />
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {matchForView.gameMode === "draft" ? (
+                <span className="text-xs text-white/55">
+                  Para jogar de novo, monte uma nova lobby de Draft.
+                </span>
+              ) : (
+                <ReplayMatchButton matchId={matchForView.id} />
+              )}
               <Link
-                href="/players"
+                href={
+                  matchForView.gameMode === "draft"
+                    ? "/players?mode=draft"
+                    : "/players"
+                }
                 className={buttonStyles({ variant: "ghost" })}
               >
                 Voltar pro lobby

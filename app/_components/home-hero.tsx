@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
 
 export function HomeHero() {
-  const randomOnlyWeekend = isRandomOnlyLobbyPeriod();
   return (
     <div className="relative mx-auto flex max-w-5xl flex-col items-center gap-12 px-6 pb-24 pt-32 text-center md:pt-40">
       <motion.div
@@ -39,20 +37,9 @@ export function HomeHero() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 0.5, ease: "easeOut" }}
           >
-            {randomOnlyWeekend ? (
-              <Button
-                type="button"
-                className="w-full cursor-not-allowed opacity-55"
-                disabled
-                title="Indisponível até segunda: neste fim de semana só o modo aleatório."
-              >
-                Modo clássico (pausa)
-              </Button>
-            ) : (
-              <Button asChild className="w-full">
-                <Link href="/players">Modo clássico</Link>
-              </Button>
-            )}
+            <Button asChild className="w-full">
+              <Link href="/players">Modo clássico</Link>
+            </Button>
           </motion.div>
           <motion.div
             className="flex flex-1 flex-col sm:min-w-[10.5rem]"
@@ -60,15 +47,16 @@ export function HomeHero() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.32, duration: 0.5, ease: "easeOut" }}
           >
-            <Button
-              asChild
-              className="w-full"
-              variant={randomOnlyWeekend ? "primary" : "outline"}
-            >
-              <Link href="/players?mode=random">Modo aleatório</Link>
+            <Button variant="outline" asChild className="w-full">
+              <Link href="/players?mode=draft">Modo Draft</Link>
             </Button>
           </motion.div>
         </div>
+        <p className="text-[11px] leading-relaxed text-white/40">
+          Campeões aleatórios viraram uma <span className="text-white/65">regra</span> dentro de cada
+          modo (em <span className="text-white/65">Condições</span> da lobby), e podem combinar com
+          clássico ou draft.
+        </p>
 
         <div className="flex w-full flex-col flex-wrap items-center justify-center gap-4 border-t border-white/10 pt-6 md:flex-row">
           <motion.div

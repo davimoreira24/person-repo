@@ -25,13 +25,18 @@ export function ReplayMatchButton({ matchId, disabled }: ReplayMatchButtonProps)
   const handleReplay = () => {
     startTransition(async () => {
       try {
-        const { balanceTeams, improvedLanes, cartasAtivas } =
-          readLobbyConditionsFromStorage();
+        const {
+          balanceTeams,
+          improvedLanes,
+          cartasAtivas,
+          championsRandom,
+        } = readLobbyConditionsFromStorage();
         const result = await replayMatchAction({
           matchId,
           balanceTeams,
           improvedLanes,
           cartasAtivas,
+          championsRandom,
         });
         if (result.cardReveal) {
           setPendingReveal({

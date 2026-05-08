@@ -13,6 +13,10 @@ export type LobbyConditionsModalProps = {
   onImprovedLanesChange: (value: boolean) => void;
   cartasAtivas: boolean;
   onCartasAtivasChange: (value: boolean) => void;
+  championsRandom: boolean;
+  onChampionsRandomChange: (value: boolean) => void;
+  /** Lobby em modo Draft? (afeta visibilidade de "Matchmaking balanceado"). */
+  isDraftMode?: boolean;
 };
 
 export function LobbyConditionsModal({
@@ -24,6 +28,9 @@ export function LobbyConditionsModal({
   onImprovedLanesChange,
   cartasAtivas,
   onCartasAtivasChange,
+  championsRandom,
+  onChampionsRandomChange,
+  isDraftMode = false,
 }: LobbyConditionsModalProps) {
   return (
     <AnimatePresence>
@@ -44,7 +51,7 @@ export function LobbyConditionsModal({
             exit={{ scale: 0.96, opacity: 0, y: 12 }}
             transition={{ type: "spring", damping: 26, stiffness: 320 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-3xl border border-white/15 bg-[#0d1422] shadow-[0_0_48px_rgba(0,0,0,0.45)]"
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/15 bg-[#0d1422] shadow-[0_0_48px_rgba(0,0,0,0.45)]"
           >
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div className="flex items-center gap-2">
@@ -68,29 +75,37 @@ export function LobbyConditionsModal({
 
             <div className="flex flex-col gap-4 px-6 py-5">
               <p className="text-sm text-white/55">
-                Ajustes opcionais antes de sortear os times. Novas opções
-                entrarão aqui no futuro.
+                Ajustes opcionais antes de sortear/draftar os times.
               </p>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-primary/35 hover:bg-white/[0.06]">
-                <input
-                  type="checkbox"
-                  checked={balanceTeams}
-                  onChange={(e) => onBalanceTeamsChange(e.target.checked)}
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-white/30 bg-black/40 text-primary focus:ring-primary"
-                />
-                <span className="flex flex-col gap-1">
-                  <span className="font-medium text-white">
+              {!isDraftMode ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-primary/35 hover:bg-white/[0.06]">
+                  <input
+                    type="checkbox"
+                    checked={balanceTeams}
+                    onChange={(e) => onBalanceTeamsChange(e.target.checked)}
+                    className="mt-1 h-4 w-4 shrink-0 rounded border-white/30 bg-black/40 text-primary focus:ring-primary"
+                  />
+                  <span className="flex flex-col gap-1">
+                    <span className="font-medium text-white">
+                      Matchmaking balanceado
+                    </span>
+                    <span className="text-xs leading-relaxed text-white/50">
+                      Usa a pontuação (PDLs) no banco de dados para formar dois
+                      times de 5 que minimizam a diferença de soma entre os
+                      lados. A ordem das rotas dentro de cada time continua
+                      aleatória.
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-relaxed text-white/45">
+                  <span className="block font-medium text-white/70">
                     Matchmaking balanceado
                   </span>
-                  <span className="text-xs leading-relaxed text-white/50">
-                    Usa a pontuação (PDLs) no banco de dados para formar dois
-                    times de 5 que minimizam a diferença de soma entre os
-                    lados. A ordem das rotas dentro de cada time continua
-                    aleatória.
-                  </span>
-                </span>
-              </label>
+                  Indisponível no modo Draft — os capitães escolhem os times.
+                </div>
+              )}
 
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-accent/35 hover:bg-white/[0.06]">
                 <input
@@ -106,9 +121,27 @@ export function LobbyConditionsModal({
                   <span className="text-xs leading-relaxed text-white/50">
                     Com base na última partida encerrada de cada jogador, evita
                     que ele caia na mesma rota duas vezes seguidas (mesmo índice:
-                    topo, selva, meio, atirador, sup). Se não houver histórico,
-                    a rota é livre. Se for impossível satisfazer todos, o sorteio
-                    volta ao aleatório comum.
+                    topo, selva, meio, atirador, sup). Vale também depois do
+                    draft, quando as lanes são sorteadas dentro de cada time.
+                  </span>
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-primary/35 hover:bg-white/[0.06]">
+                <input
+                  type="checkbox"
+                  checked={championsRandom}
+                  onChange={(e) => onChampionsRandomChange(e.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-white/30 bg-black/40 text-primary focus:ring-primary"
+                />
+                <span className="flex flex-col gap-1">
+                  <span className="font-medium text-white">
+                    Campeões aleatórios
+                  </span>
+                  <span className="text-xs leading-relaxed text-white/50">
+                    Sorteia 1 campeão compatível por rota (dados Meraki), sem
+                    repetir campeão na partida quando possível. Funciona junto
+                    com qualquer modo (clássico ou draft).
                   </span>
                 </span>
               </label>
