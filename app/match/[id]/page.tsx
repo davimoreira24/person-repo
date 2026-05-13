@@ -11,6 +11,7 @@ import {
 import { TeamDisplay } from "./_components/team-display";
 import { CompleteMatchDialog } from "./_components/complete-match-dialog";
 import { ReplayMatchButton } from "./_components/replay-match-button";
+import { ReplayDraftButton } from "./_components/replay-draft-button";
 import { RankingSection } from "./_components/ranking-section";
 
 interface MatchPageProps {
@@ -68,6 +69,12 @@ export default async function MatchPage({ params }: MatchPageProps) {
   );
 
   const allPlayers = await getPlayers();
+
+  const matchPlayerIds = new Set<number>([
+    ...matchForView.teams[1].map((p) => p.playerId),
+    ...matchForView.teams[2].map((p) => p.playerId),
+  ]);
+  const draftReplayPlayers = allPlayers.filter((p) => matchPlayerIds.has(p.id));
 
   const winnerPlayers = matchForView.winnerTeam
     ? matchForView.teams[matchForView.winnerTeam]
@@ -172,9 +179,7 @@ export default async function MatchPage({ params }: MatchPageProps) {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-3">
               {matchForView.gameMode === "draft" ? (
-                <span className="text-xs text-white/55">
-                  Para jogar de novo, monte uma nova lobby de Draft.
-                </span>
+                <ReplayDraftButton players={draftReplayPlayers} />
               ) : (
                 <ReplayMatchButton matchId={matchForView.id} />
               )}
