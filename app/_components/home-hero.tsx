@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { SeasonCountdown } from "@/components/season-countdown";
 
 export function HomeHero() {
   return (
@@ -25,6 +26,8 @@ export function HomeHero() {
         Monte partidas lendárias com equilíbrio, estilo e estatísticas em tempo
         real.
       </motion.h1>
+
+      <SeasonCountdown variant="hero" />
 
       <div className="flex max-w-xl flex-col items-center gap-6">
         <p className="text-xs uppercase tracking-[0.35em] text-white/45">
