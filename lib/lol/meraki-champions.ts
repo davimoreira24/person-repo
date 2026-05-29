@@ -138,3 +138,52 @@ export function pickRandomChampionsForMatch(
 
   return picks;
 }
+
+/** Sorteia 1 campeão compatível com a rota, evitando `usedKeys` quando possível. */
+export function pickRandomChampionForLane(
+  catalog: Record<string, ChampionCatalogEntry>,
+  lane: MerakiLane,
+  usedKeys: ReadonlySet<string>,
+): ChampionPick {
+  const withLane = Object.values(catalog).filter((c) =>
+    c.positions.includes(lane),
+  );
+
+  const unused = withLane.filter((c) => !usedKeys.has(c.key));
+  const pool = unused.length > 0 ? unused : withLane;
+
+  if (pool.length === 0) {
+    throw new Error(`Nenhum campeão disponível para a rota ${lane}.`);
+  }
+
+  const choice = pool[biasedRandomIndex(pool.length)]!;
+  return { key: choice.key, name: choice.name };
+}
+
+/**
+ * Atribui campeões às posições Bravura (índice 0–9 = lane por ordem do card).
+ * Respeita campeões já definidos (ex.: regra global) para unicidade.
+ */
+export function assignBravuraChampionsBySlotIndex(
+  catalog: Record<string, ChampionCatalogEntry>,
+  bravuraSlotIndexes: number[],
+  existingKeysBySlot: ReadonlyArray<string | null | undefined>,
+): Map<number, ChampionPick> {
+  const usedKeys = new Set<string>();
+  for (const key of existingKeysBySlot) {
+    if (key) usedKeys.add(key);
+  }
+
+  const lanes: MerakiLane[] = [...LANE_ORDER, ...LANE_ORDER];
+  const result = new Map<number, ChampionPick>();
+
+  for (const slotIndex of bravuraSlotIndexes) {
+    if (slotIndex < 0 || slotIndex > 9) continue;
+    const lane = lanes[slotIndex]!;
+    const pick = pickRandomChampionForLane(catalog, lane, usedKeys);
+    usedKeys.add(pick.key);
+    result.set(slotIndex, pick);
+  }
+
+  return result;
+}

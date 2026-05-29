@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { votes, votingSessions, matches, matchAwards, players, matchPlayers } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { applyMatchCompletionScores } from "@/lib/match/apply-match-scores";
 
 const createVotingSessionSchema = z.object({
   matchId: z.number(),
@@ -160,46 +161,28 @@ export async function finalizeVotingAction(votingSessionId: string) {
 
   // Get match players
   const matchPlayersData = await db
-    .select()
+    .select({
+      playerId: matchPlayers.playerId,
+      team: matchPlayers.team,
+      bravura: matchPlayers.bravura,
+      challengeActive: matchPlayers.challengeActive,
+    })
     .from(matchPlayers)
     .where(eq(matchPlayers.matchId, session.matchId));
 
-  const winnerPlayers = matchPlayersData
-    .filter((mp) => mp.team === session.winnerTeam)
-    .map((mp) => mp.playerId);
-  const loserPlayers = matchPlayersData
-    .filter((mp) => mp.team !== session.winnerTeam)
-    .map((mp) => mp.playerId);
-
   // Use transaction to update everything atomically
   await db.transaction(async (tx) => {
-    // Update winner scores (+25)
-    for (const playerId of winnerPlayers) {
-      await tx
-        .update(players)
-        .set({ score: sql`${players.score} + 25` })
-        .where(eq(players.id, playerId));
-    }
-
-    // Update loser scores (-25)
-    for (const playerId of loserPlayers) {
-      await tx
-        .update(players)
-        .set({ score: sql`${players.score} - 25` })
-        .where(eq(players.id, playerId));
-    }
-
-    // Update MVP score (+10)
-    await tx
-      .update(players)
-      .set({ score: sql`${players.score} + 10` })
-      .where(eq(players.id, mvpPlayerId));
-
-    // Update DUD score (-10)
-    await tx
-      .update(players)
-      .set({ score: sql`${players.score} - 10` })
-      .where(eq(players.id, dudPlayerId));
+    await applyMatchCompletionScores(tx, {
+      winnerTeam: session.winnerTeam as 1 | 2,
+      mvpPlayerId,
+      dudPlayerId,
+      rows: matchPlayersData.map((row) => ({
+        playerId: row.playerId,
+        team: row.team,
+        bravura: row.bravura === true,
+        challengeActive: row.challengeActive === true,
+      })),
+    });
 
     // Insert awards
     await tx.insert(matchAwards).values([

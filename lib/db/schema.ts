@@ -64,6 +64,8 @@ export const matches = pgTable("matches", {
   gameMode: varchar("game_mode", { length: 32 }).default("classic").notNull(),
   /** Regra: sorteia campeão por rota (Meraki). Pode combinar com qualquer modo. */
   championsRandom: boolean("champions_random").default(false).notNull(),
+  /** Pré-partida (Bravura / loadout) concluída — null = ainda na tela pré-partida. */
+  loadoutCompletedAt: timestamp("loadout_completed_at", { withTimezone: true }),
   /** Cartinha de regra sorteada para esta partida (lobby com “cartas ativas”). */
   selectedGameCardId: integer("selected_game_card_id").references(
     () => gameCards.id,
@@ -84,9 +86,18 @@ export const matchPlayers = pgTable(
     team: integer("team").notNull(),
     championKey: varchar("champion_key", { length: 48 }),
     championName: varchar("champion_name", { length: 80 }),
+    /** Opt-in: campeão aleatório na rota + bônus de PDL se o time vencer. */
+    bravura: boolean("bravura").default(false).notNull(),
+    /** Desafio PDL: dobra ganho/perda do time (+50/−50). Revelado só ao encerrar. */
+    challengeActive: boolean("challenge_active").default(false).notNull(),
+    /** Link privado único para o jogador ativar/desativar o desafio. */
+    challengeToken: uuid("challenge_token").defaultRandom().notNull(),
   },
   (table) => ({
     matchIdx: index("match_players_match_idx").on(table.matchId),
+    challengeTokenIdx: index("match_players_challenge_token_idx").on(
+      table.challengeToken,
+    ),
   }),
 );
 

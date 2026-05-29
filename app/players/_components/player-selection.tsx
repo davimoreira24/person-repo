@@ -22,6 +22,7 @@ import {
 import type { CardRevealPayload } from "@/lib/match/game-card-types";
 import { GameCardRevealOverlay } from "@/components/game-card-reveal-overlay";
 import { DraftOverlay, type DraftResult } from "./draft-overlay";
+import { matchPrePartidaPath } from "@/lib/match/routes";
 import { Search, SlidersHorizontal, Swords, Trophy } from "lucide-react";
 
 export type PlayerSelectionMode = "classic" | "draft";
@@ -151,7 +152,7 @@ export function PlayerSelection({
           return;
         }
         setSelected([]);
-        router.push(`/match/${result.matchId}`);
+        router.push(matchPrePartidaPath(result.matchId));
       } catch (error) {
         setErrorMessage(
           error instanceof Error
@@ -181,7 +182,7 @@ export function PlayerSelection({
           return;
         }
         setSelected([]);
-        router.push(`/match/${created.matchId}`);
+        router.push(matchPrePartidaPath(created.matchId));
       } catch (error) {
         setErrorMessage(
           error instanceof Error
@@ -557,7 +558,7 @@ export function PlayerSelection({
               const id = pendingCardReveal.matchId;
               setPendingCardReveal(null);
               setSelected([]);
-              router.push(`/match/${id}`);
+              router.push(matchPrePartidaPath(id));
             }}
           />
         ) : null}

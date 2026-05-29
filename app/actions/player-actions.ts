@@ -25,6 +25,9 @@ import {
   type CardRevealPayload,
 } from "@/lib/queries/game-cards";
 import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
+import {
+  applyMatchCompletionScores,
+} from "@/lib/match/apply-match-scores";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
@@ -414,6 +417,8 @@ export async function completeMatchAction(input: unknown) {
     .select({
       playerId: matchPlayers.playerId,
       team: matchPlayers.team,
+      bravura: matchPlayers.bravura,
+      challengeActive: matchPlayers.challengeActive,
     })
     .from(matchPlayers)
     .where(eq(matchPlayers.matchId, matchId));
@@ -462,32 +467,17 @@ export async function completeMatchAction(input: unknown) {
       { matchId, playerId: dudPlayerId, awardType: "dud" },
     ]);
 
-    const uniqueWinners = Array.from(new Set(winners));
-    const uniqueLosers = Array.from(new Set(losers));
-
-    if (uniqueWinners.length > 0) {
-      await tx
-        .update(players)
-        .set({ score: sql`${players.score} + 25` })
-        .where(inArray(players.id, uniqueWinners));
-    }
-
-    if (uniqueLosers.length > 0) {
-      await tx
-        .update(players)
-        .set({ score: sql`${players.score} - 25` })
-        .where(inArray(players.id, uniqueLosers));
-    }
-
-    await tx
-      .update(players)
-      .set({ score: sql`${players.score} + 10` })
-      .where(eq(players.id, mvpPlayerId));
-
-    await tx
-      .update(players)
-      .set({ score: sql`${players.score} - 10` })
-      .where(eq(players.id, dudPlayerId));
+    await applyMatchCompletionScores(tx, {
+      winnerTeam,
+      mvpPlayerId,
+      dudPlayerId,
+      rows: matchPlayersRows.map((row) => ({
+        playerId: row.playerId,
+        team: row.team,
+        bravura: row.bravura === true,
+        challengeActive: row.challengeActive === true,
+      })),
+    });
   });
 
   revalidatePath("/players");

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { buttonStyles } from "@/components/ui/button";
 import { buildPoopRoastByPlayerId } from "@/lib/match/poop-roast";
 import {
@@ -12,6 +12,7 @@ import { TeamDisplay } from "./_components/team-display";
 import { CompleteMatchDialog } from "./_components/complete-match-dialog";
 import { ReplayMatchButton } from "./_components/replay-match-button";
 import { ReplayDraftButton } from "./_components/replay-draft-button";
+import { ChallengeRevealSection } from "./_components/challenge-reveal-section";
 import { RankingSection } from "./_components/ranking-section";
 
 interface MatchPageProps {
@@ -38,6 +39,10 @@ export default async function MatchPage({ params }: MatchPageProps) {
 
   if (!match) {
     notFound();
+  }
+
+  if (!match.winnerTeam && !match.loadoutCompletedAt) {
+    redirect(`/match/${matchId}/pre-partida`);
   }
 
   const streakIds = [
@@ -177,6 +182,10 @@ export default async function MatchPage({ params }: MatchPageProps) {
                 PDLs ao todo)
               </span>
             )}
+            <ChallengeRevealSection
+              matchId={matchForView.id}
+              winnerTeam={matchForView.winnerTeam!}
+            />
             <div className="mt-2 flex flex-wrap items-center gap-3">
               {matchForView.gameMode === "draft" ? (
                 <ReplayDraftButton players={draftReplayPlayers} />

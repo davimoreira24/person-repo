@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Crown, Loader2, Shield, Sparkles, Swords, X } from "lucide-react";
+import { Crown, Loader2, RotateCcw, Shield, Sparkles, Swords, Undo2, X } from "lucide-react";
 import type { Player } from "@/lib/db/schema";
 
 /** Pega N índices distintos com `crypto.getRandomValues` (sem repetir). */
@@ -25,6 +25,19 @@ function pickRandomIndex(total: number): number {
 }
 
 type Phase = "captains" | "first-picker" | "drafting" | "ready";
+
+type PickEntry = { team: 1 | 2; playerId: number };
+
+function rollCaptains(playerList: Player[]): {
+  captainOne: Player;
+  captainTwo: Player;
+} {
+  const [i1, i2] = pickDistinctIndexes(playerList.length, 2);
+  return {
+    captainOne: playerList[i1!]!,
+    captainTwo: playerList[i2!]!,
+  };
+}
 
 export type DraftResult = {
   teamOneIds: number[];
@@ -47,11 +60,14 @@ export function DraftOverlay({
   isSubmitting = false,
 }: DraftOverlayProps) {
   const [phase, setPhase] = useState<Phase>("captains");
+  const [draftSessionId, setDraftSessionId] = useState(0);
   const [captainOneId, setCaptainOneId] = useState<number | null>(null);
   const [captainTwoId, setCaptainTwoId] = useState<number | null>(null);
+  const [firstPicker, setFirstPicker] = useState<1 | 2>(1);
   const [currentPicker, setCurrentPicker] = useState<1 | 2>(1);
   const [team1Ids, setTeam1Ids] = useState<number[]>([]);
   const [team2Ids, setTeam2Ids] = useState<number[]>([]);
+  const [pickHistory, setPickHistory] = useState<PickEntry[]>([]);
 
   const playersById = useMemo(() => {
     const m = new Map<number, Player>();
@@ -59,13 +75,13 @@ export function DraftOverlay({
     return m;
   }, [players]);
 
-  // Sorteia capitães (após pequena animação suspense).
+  // Sorteia capitães (mount + "Recomeçar draft").
   useEffect(() => {
     if (players.length !== 10) return;
+    setPickHistory([]);
+    setPhase("captains");
     const t = window.setTimeout(() => {
-      const [i1, i2] = pickDistinctIndexes(players.length, 2);
-      const c1 = players[i1!]!;
-      const c2 = players[i2!]!;
+      const { captainOne: c1, captainTwo: c2 } = rollCaptains(players);
       setCaptainOneId(c1.id);
       setCaptainTwoId(c2.id);
       setTeam1Ids([c1.id]);
@@ -74,19 +90,20 @@ export function DraftOverlay({
       return () => clearTimeout(t2);
     }, 700);
     return () => clearTimeout(t);
-  }, [players]);
+  }, [players, draftSessionId]);
 
   // Após capitães prontos, sorteia quem começa.
   useEffect(() => {
     if (phase !== "first-picker") return;
     const t = window.setTimeout(() => {
       const first = pickRandomIndex(2) === 0 ? 1 : 2;
-      setCurrentPicker(first as 1 | 2);
+      setFirstPicker(first);
+      setCurrentPicker(first);
       const t2 = window.setTimeout(() => setPhase("drafting"), 1700);
       return () => clearTimeout(t2);
     }, 600);
     return () => clearTimeout(t);
-  }, [phase]);
+  }, [phase, draftSessionId]);
 
   const captainOne = captainOneId ? playersById.get(captainOneId) ?? null : null;
   const captainTwo = captainTwoId ? playersById.get(captainTwoId) ?? null : null;
@@ -103,32 +120,51 @@ export function DraftOverlay({
   const onPickPlayer = (playerId: number) => {
     if (phase !== "drafting") return;
     if (pickedSet.has(playerId)) return;
-    if (currentPicker === 1) {
+    const team = currentPicker;
+    if (team === 1) {
       setTeam1Ids((prev) => [...prev, playerId]);
     } else {
       setTeam2Ids((prev) => [...prev, playerId]);
     }
+    setPickHistory((prev) => [...prev, { team, playerId }]);
+
+    const nextTeam1Len = team === 1 ? team1Ids.length + 1 : team1Ids.length;
+    const nextTeam2Len = team === 2 ? team2Ids.length + 1 : team2Ids.length;
+    if (nextTeam1Len === 5 && nextTeam2Len === 5) {
+      setPhase("ready");
+    } else {
+      setCurrentPicker(team === 1 ? 2 : 1);
+    }
   };
 
-  // Detecta fim do draft.
-  useEffect(() => {
-    if (phase !== "drafting") return;
-    if (team1Ids.length === 5 && team2Ids.length === 5) {
-      setPhase("ready");
-      return;
-    }
-    if (team1Ids.length + team2Ids.length === 0) return;
-    // Alterna o picker: o time com menos jogadores escolhe a seguir.
-    // (Capitães já contam: time 1 começa em 1, time 2 em 1.)
-    if (team1Ids.length < team2Ids.length) {
-      setCurrentPicker(1);
-    } else if (team2Ids.length < team1Ids.length) {
-      setCurrentPicker(2);
+  const undoLastPick = () => {
+    if (isSubmitting || pickHistory.length === 0) return;
+    const last = pickHistory[pickHistory.length - 1]!;
+    setPickHistory((prev) => prev.slice(0, -1));
+    if (last.team === 1) {
+      setTeam1Ids((prev) => prev.filter((id) => id !== last.playerId));
     } else {
-      // Empate em tamanho: alterna em relação ao último escolhido.
-      setCurrentPicker((prev) => (prev === 1 ? 2 : 1));
+      setTeam2Ids((prev) => prev.filter((id) => id !== last.playerId));
     }
-  }, [team1Ids, team2Ids, phase]);
+    setPhase("drafting");
+    setCurrentPicker(last.team);
+  };
+
+  const resetDraft = () => {
+    if (isSubmitting) return;
+    const ok = window.confirm(
+      "Recomeçar o draft? Novos capitães serão sorteados e todas as escolhas serão zeradas.",
+    );
+    if (!ok) return;
+    setDraftSessionId((n) => n + 1);
+  };
+
+  const canUndo =
+    pickHistory.length > 0 &&
+    (phase === "drafting" || phase === "ready") &&
+    !isSubmitting;
+  const canReset =
+    (phase === "drafting" || phase === "ready") && !isSubmitting;
 
   const handleConfirm = () => {
     if (!captainOneId || !captainTwoId) return;
@@ -187,7 +223,7 @@ export function DraftOverlay({
               players={players}
               captainOne={captainOne}
               captainTwo={captainTwo}
-              firstPicker={currentPicker}
+              firstPicker={firstPicker}
             />
           ) : null}
 
@@ -208,6 +244,11 @@ export function DraftOverlay({
                   ids={team1Ids}
                   playersById={playersById}
                   isActive={phase === "drafting" && currentPicker === 1}
+                  lastPickedId={
+                    pickHistory[pickHistory.length - 1]?.team === 1
+                      ? pickHistory[pickHistory.length - 1]?.playerId
+                      : null
+                  }
                 />
                 <TeamColumn
                   label="Time 2"
@@ -216,11 +257,16 @@ export function DraftOverlay({
                   ids={team2Ids}
                   playersById={playersById}
                   isActive={phase === "drafting" && currentPicker === 2}
+                  lastPickedId={
+                    pickHistory[pickHistory.length - 1]?.team === 2
+                      ? pickHistory[pickHistory.length - 1]?.playerId
+                      : null
+                  }
                 />
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-black/30 p-4 sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-display text-base text-white/90">
                     {phase === "drafting" ? (
                       <>
@@ -240,10 +286,42 @@ export function DraftOverlay({
                       <>Times completos. Confirme para iniciar a partida.</>
                     )}
                   </h3>
-                  <span className="text-xs text-white/45">
-                    Restantes: {remaining.length}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-white/45">
+                      Restantes: {remaining.length}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={undoLastPick}
+                      disabled={!canUndo}
+                      className="gap-1.5 border-white/15 text-white/85"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Desfazer última
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={resetDraft}
+                      disabled={!canReset}
+                      className="gap-1.5 border-white/15 text-white/85"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Recomeçar draft
+                    </Button>
+                  </div>
                 </div>
+                {pickHistory.length === 0 && phase === "drafting" ? (
+                  <p className="mb-3 text-[11px] text-white/40">
+                    Clicou errado? Use{" "}
+                    <span className="text-white/55">Desfazer última</span> após
+                    escolher. Para novos capitães, use{" "}
+                    <span className="text-white/55">Recomeçar draft</span>.
+                  </p>
+                ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                   {remaining.map((p) => (
@@ -322,6 +400,8 @@ type TeamColumnProps = {
   ids: number[];
   playersById: Map<number, Player>;
   isActive: boolean;
+  /** Destaca a última escolha deste time (facilita ver o que o desfazer remove). */
+  lastPickedId?: number | null;
 };
 
 function TeamColumn({
@@ -331,6 +411,7 @@ function TeamColumn({
   ids,
   playersById,
   isActive,
+  lastPickedId = null,
 }: TeamColumnProps) {
   const accentBorder =
     accent === "primary" ? "border-primary/35" : "border-accent/35";
@@ -365,13 +446,16 @@ function TeamColumn({
         {slots.map((id, idx) => {
           const player = id ? playersById.get(id) ?? null : null;
           const isCaptain = id !== null && id === captainId;
+          const isLastPick = id !== null && id === lastPickedId;
           return (
             <div
               key={`${label}-slot-${idx}`}
               className={`flex items-center gap-3 rounded-xl border px-3 py-2 transition ${
                 player
-                  ? `border-white/12 bg-black/35`
-                  : `border-dashed border-white/10 bg-black/15`
+                  ? isLastPick
+                    ? "border-primary/45 bg-primary/10 ring-1 ring-primary/25"
+                    : "border-white/12 bg-black/35"
+                  : "border-dashed border-white/10 bg-black/15"
               }`}
             >
               <span className="w-6 shrink-0 text-center text-[11px] text-white/35">

@@ -144,6 +144,16 @@ function LolPlayerCard({
             Pior
           </div>
         )}
+        {player.bravura && !player.isMvp && !player.isDud ? (
+          <div className="absolute left-3 top-3 z-20 flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-100 shadow-[0_0_12px_rgba(230,195,87,0.4)]">
+            Bravura
+          </div>
+        ) : null}
+        {player.bravura && (player.isMvp || player.isDud) ? (
+          <div className="absolute left-3 top-10 z-20 flex items-center gap-1 rounded-full border border-amber-400/45 bg-amber-500/12 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-amber-100/90">
+            Bravura
+          </div>
+        ) : null}
         {electricBorder && player.winStreak >= WIN_STREAK_FOR_ELECTRIC_BORDER ? (
           <div className="absolute bottom-3 left-3 z-20 max-w-[calc(100%-1.5rem)] rounded-full border border-primary/50 bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-primary shadow-[0_0_14px_rgba(230,195,87,0.35)]">
             {player.winStreak} vitórias seguidas
@@ -313,7 +323,7 @@ export function TeamDisplay({
         <h2 className="font-display text-4xl text-white drop-shadow-[0_0_35px_rgba(79,114,255,0.35)]">
           Summoner&apos;s Rift
         </h2>
-        {match.gameMode === "random_champions" && (
+        {match.championsRandom && (
           <span className="mt-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
             Campeões aleatórios por rota
           </span>

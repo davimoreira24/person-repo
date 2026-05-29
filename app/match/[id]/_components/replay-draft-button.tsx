@@ -7,6 +7,7 @@ import { createDraftMatchAction } from "@/app/actions/player-actions";
 import { GameCardRevealOverlay } from "@/components/game-card-reveal-overlay";
 import { DraftOverlay, type DraftResult } from "@/app/players/_components/draft-overlay";
 import { readLobbyConditionsFromStorage } from "@/lib/lobby-conditions-storage";
+import { matchPrePartidaPath } from "@/lib/match/routes";
 import type { CardRevealPayload } from "@/lib/match/game-card-types";
 import type { Player } from "@/lib/db/schema";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export function ReplayDraftButton({ players, disabled }: ReplayDraftButtonProps)
           });
           return;
         }
-        router.push(`/match/${created.matchId}`);
+        router.push(matchPrePartidaPath(created.matchId));
       } catch (error) {
         setErrorMessage(
           error instanceof Error
@@ -106,7 +107,7 @@ export function ReplayDraftButton({ players, disabled }: ReplayDraftButtonProps)
             onContinue={() => {
               const id = pendingReveal.matchId;
               setPendingReveal(null);
-              router.push(`/match/${id}`);
+              router.push(matchPrePartidaPath(id));
             }}
           />
         ) : null}

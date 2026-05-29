@@ -6,6 +6,7 @@ import { AnimatePresence } from "framer-motion";
 import { replayMatchAction } from "@/app/actions/player-actions";
 import { GameCardRevealOverlay } from "@/components/game-card-reveal-overlay";
 import { readLobbyConditionsFromStorage } from "@/lib/lobby-conditions-storage";
+import { matchPrePartidaPath } from "@/lib/match/routes";
 import type { CardRevealPayload } from "@/lib/match/game-card-types";
 import { Button } from "@/components/ui/button";
 
@@ -45,7 +46,7 @@ export function ReplayMatchButton({ matchId, disabled }: ReplayMatchButtonProps)
           });
           return;
         }
-        router.push(`/match/${result.matchId}`);
+        router.push(matchPrePartidaPath(result.matchId));
       } catch (error) {
         console.error(error);
       }
@@ -70,7 +71,7 @@ export function ReplayMatchButton({ matchId, disabled }: ReplayMatchButtonProps)
             onContinue={() => {
               const id = pendingReveal.matchId;
               setPendingReveal(null);
-              router.push(`/match/${id}`);
+              router.push(matchPrePartidaPath(id));
             }}
           />
         ) : null}

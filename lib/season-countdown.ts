@@ -2,7 +2,7 @@
 export const SEASON_TIME_ZONE = "America/Sao_Paulo";
 
 /** 28/05/2026 23:59:59,999 — fim da Person (Brasília, UTC−3). */
-export const SEASON_END_MS = Date.parse("2026-05-28T23:59:59.999-03:00");
+export const SEASON_END_MS = Date.parse("2026-06-30T23:59:59.999-03:00");
 
 export type SeasonCountdownParts = {
   days: number;
@@ -30,4 +30,5 @@ export function getSeasonCountdownParts(
   };
 }
 
-export const SEASON_END_LABEL = "28 de maio de 2026, 23h59 (Horário de Brasília)";
+export const SEASON_END_LABEL =
+  "30 de junho de 2026, 23h59 (Horário de Brasília)";

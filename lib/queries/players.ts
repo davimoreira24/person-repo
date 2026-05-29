@@ -178,6 +178,9 @@ export type MatchTeamPlayer = {
   isDud: boolean;
   championKey: string | null;
   championName: string | null;
+  bravura: boolean;
+  /** Revelado só após encerrar a partida. */
+  challengeActive: boolean;
   /** Vitórias seguidas (partidas encerradas), mais recente primeiro. */
   winStreak: number;
   /** Derrotas seguidas (partidas encerradas), mais recente primeiro. */
@@ -200,6 +203,7 @@ export interface MatchWithTeams {
   gameMode: string;
   /** Regra "Campeões aleatórios" (nova). Se for partida legada `random_champions`, vem true também. */
   championsRandom: boolean;
+  loadoutCompletedAt: Date | null;
   /** Cartinha sorteada para esta partida (se a lobby tinha “cartas ativas”). */
   selectedCard: MatchSelectedCard | null;
   awards: {
@@ -221,6 +225,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       winnerTeam: matches.winnerTeam,
       gameMode: matches.gameMode,
       championsRandom: matches.championsRandom,
+      loadoutCompletedAt: matches.loadoutCompletedAt,
       selectedGameCardId: matches.selectedGameCardId,
       cardSlug: gameCards.slug,
       cardTitle: gameCards.title,
@@ -234,6 +239,8 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       matchPlayerId: matchPlayers.id,
       championKey: matchPlayers.championKey,
       championName: matchPlayers.championName,
+      bravura: matchPlayers.bravura,
+      challengeActive: matchPlayers.challengeActive,
     })
     .from(matches)
     .leftJoin(gameCards, eq(matches.selectedGameCardId, gameCards.id))
@@ -299,6 +306,9 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       isDud: awardMap.dudPlayerId === playerId,
       championKey: row.championKey ?? null,
       championName: row.championName ?? null,
+      bravura: row.bravura === true,
+      challengeActive:
+        winnerTeam !== null ? row.challengeActive === true : false,
       winStreak: 0,
       lossStreak: 0,
     });
@@ -313,6 +323,7 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
     gameMode,
     championsRandom:
       matchInfo.championsRandom === true || gameMode === "random_champions",
+    loadoutCompletedAt: matchInfo.loadoutCompletedAt ?? null,
     selectedCard,
     awards: awardMap,
     teams,
