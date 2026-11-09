@@ -1,9 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/lib/db/schema";
+import { playerProfilePath } from "@/lib/match/routes";
+import { getPlayerRiotIdLabel } from "@/lib/riot/display";
+import { UserRound } from "lucide-react";
 
 interface PlayerCardProps {
   player: Player;
@@ -24,6 +28,8 @@ export function PlayerCard({
   variant = "grid",
   highlight = null,
 }: PlayerCardProps) {
+  const riotId = getPlayerRiotIdLabel(player);
+
   const highlightClasses =
     highlight === "gold"
       ? "border-[#E6C357] shadow-[0_0_35px_rgba(230,195,87,0.6)]"
@@ -48,12 +54,15 @@ export function PlayerCard({
     >
       <div className="flex items-center gap-4">
         <Avatar src={player.photoUrl ?? undefined} alt={player.name} size="md" />
-        <div className="flex flex-1 flex-col">
-          <span className="font-semibold uppercase tracking-wide text-white/80 break-words">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="break-words font-semibold uppercase tracking-wide text-white/80">
             {player.name}
           </span>
+          {riotId ? (
+            <span className="truncate text-[11px] text-white/40">{riotId}</span>
+          ) : null}
           <span className="text-xs text-white/50">
-            Pontuação:{" "}
+            PDL:{" "}
             <button
               type="button"
               onClick={() => onEditScore(player)}
@@ -68,7 +77,7 @@ export function PlayerCard({
           disabled={disabled && !isSelected}
           onClick={() => onToggle(player.id)}
           className={cn(
-            "rounded-full border px-4 py-1 text-xs uppercase tracking-wider transition-all",
+            "shrink-0 rounded-full border px-4 py-1 text-xs uppercase tracking-wider transition-all",
             isSelected
               ? "border-accent bg-accent/20 text-white"
               : "border-white/20 text-white/60 hover:border-accent hover:text-white",
@@ -78,7 +87,14 @@ export function PlayerCard({
           {isSelected ? "Selecionado" : "Selecionar"}
         </button>
       </div>
+
+      <Link
+        href={playerProfilePath(player.id)}
+        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-[11px] uppercase tracking-wide text-white/65 transition hover:border-primary/40 hover:text-primary"
+      >
+        <UserRound className="h-3.5 w-3.5" />
+        Ver perfil
+      </Link>
     </motion.div>
   );
 }
-

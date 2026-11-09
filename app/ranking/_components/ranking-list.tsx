@@ -1,19 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import type { Player } from "@/lib/db/schema";
 import type { PlayerCareerStats } from "@/lib/queries/players";
+import { playerProfilePath } from "@/lib/match/routes";
 import {
-  Trophy,
-  Medal,
-  Award,
-  TrendingUp,
-  TrendingDown,
-  Star,
-  Frown,
-} from "lucide-react";
+  getPlayerRiotIdLabel,
+  getPlayerSoloRankLabel,
+} from "@/lib/riot/display";
+import { Trophy, Medal, Award } from "lucide-react";
 
 export type RankingListPlayer = Player & { careerStats: PlayerCareerStats };
 
@@ -76,151 +73,12 @@ function getRankStyles(position: number) {
   }
 }
 
-interface PlayerCardModalProps {
-  player: RankingListPlayer;
-  position: number;
-  onClose: () => void;
-}
-
-function PlayerCardModal({ player, position, onClose }: PlayerCardModalProps) {
-  const styles = getRankStyles(position);
-  const isTopThree = position <= 3;
-  const { wins, losses, mvpCount, dudCount } = player.careerStats;
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ scale: 0.8, opacity: 0, y: 40 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.8, opacity: 0, y: 40 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        onClick={(e) => e.stopPropagation()}
-        className={`relative flex max-h-[90vh] min-h-[520px] w-[340px] flex-col items-center overflow-y-auto overflow-x-hidden rounded-3xl border-2 bg-gradient-to-br from-neutral via-neutral/95 to-black/90 p-6 pb-24 ${styles.border} ${styles.glow}`}
-      >
-        {/* Rank Badge */}
-        <div className={`absolute left-6 top-6 z-10 flex items-center gap-2 rounded-full border px-4 py-2 backdrop-blur-sm ${styles.border} ${isTopThree ? 'bg-black/60' : 'bg-white/10'}`}>
-          {getRankIcon(position)}
-          <span className={`text-2xl font-bold ${styles.text}`}>#{position}</span>
-        </div>
-
-        {/* Player Photo */}
-        <div className="relative mt-16 h-48 w-48 shrink-0 overflow-hidden rounded-full border-4 shadow-2xl" style={{ borderColor: isTopThree ? styles.border.split('-')[1]?.split('/')[0] : 'rgba(255,255,255,0.2)' }}>
-          {player.photoUrl ? (
-            <Image
-              src={player.photoUrl}
-              alt={player.name}
-              fill
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-white/10 to-white/5 text-6xl font-bold text-white/30">
-              {getInitials(player.name)}
-            </div>
-          )}
-        </div>
-
-        {/* Player Info */}
-        <div className="mt-6 flex w-full flex-col items-center gap-4">
-          <h2 className="font-display text-3xl font-bold tracking-tight text-white">
-            {player.name}
-          </h2>
-
-          <div className="flex flex-col items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-[0.3em] text-white/50">
-              Pontuação
-            </span>
-            <div className="flex items-center gap-2">
-              <TrendingUp className={`h-5 w-5 ${styles.text}`} />
-              <span className={`text-4xl font-bold ${isTopThree ? styles.text : 'text-white'}`}>
-                {player.score}
-              </span>
-              <span className="text-xl text-white/50">PDLs</span>
-            </div>
-          </div>
-
-          <div className="mt-2 w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-4">
-            <p className="mb-3 text-center text-[10px] font-semibold uppercase tracking-[0.25em] text-white/45">
-              Histórico em partidas encerradas
-            </p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2.5">
-                <TrendingUp className="h-4 w-4 shrink-0 text-emerald-400" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">
-                    Vitórias
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-emerald-300">
-                    {wins}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2.5">
-                <TrendingDown className="h-4 w-4 shrink-0 text-red-400" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">
-                    Derrotas
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-red-300">
-                    {losses}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5">
-                <Star className="h-4 w-4 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">
-                    MVPs
-                  </p>
-                  <p
-                    className={`text-lg font-bold tabular-nums ${isTopThree ? styles.text : "text-primary"}`}
-                  >
-                    {mvpCount}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-red-950/40 px-3 py-2.5">
-                <Frown className="h-4 w-4 shrink-0 text-red-400/90" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">
-                    Pior da partida
-                  </p>
-                  <p className="text-lg font-bold tabular-nums text-red-300/90">
-                    {dudCount}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Close hint */}
-        <div className="absolute bottom-6 text-xs text-white/40">
-          Clique fora para fechar
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
 export function RankingList({ players }: RankingListProps) {
-  const [selectedPlayer, setSelectedPlayer] = useState<{
-    player: RankingListPlayer;
-    position: number;
-  } | null>(null);
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-      },
+      transition: { staggerChildren: 0.08 },
     },
   };
 
@@ -230,37 +88,31 @@ export function RankingList({ players }: RankingListProps) {
       opacity: 1,
       x: 0,
       scale: 1,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut",
-      },
+      transition: { duration: 0.5, ease: "easeOut" },
     },
   };
 
   return (
-    <>
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="grid gap-4"
-      >
-        {players.map((player, index) => {
-          const position = index + 1;
-          const styles = getRankStyles(position);
-          const isTopThree = position <= 3;
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="grid gap-4"
+    >
+      {players.map((player, index) => {
+        const position = index + 1;
+        const styles = getRankStyles(position);
+        const isTopThree = position <= 3;
 
-          return (
-            <motion.div
-              key={player.id}
-              variants={itemVariants}
-              whileHover={{ scale: 1.02, x: 8 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setSelectedPlayer({ player, position })}
-              className={`group relative flex cursor-pointer items-center gap-6 overflow-hidden rounded-2xl border bg-gradient-to-r p-6 transition-all hover:border-accent/60 ${styles.border} ${styles.gradient} ${styles.glow}`}
+        return (
+          <motion.div key={player.id} variants={itemVariants}>
+            <Link
+              href={playerProfilePath(player.id)}
+              className={`group relative flex items-center gap-6 overflow-hidden rounded-2xl border bg-gradient-to-r p-6 transition-all hover:border-accent/60 hover:scale-[1.01] ${styles.border} ${styles.gradient} ${styles.glow}`}
             >
-              {/* Position Badge */}
-              <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border backdrop-blur-sm transition-transform group-hover:scale-110 ${styles.border} ${isTopThree ? 'bg-black/60' : 'bg-white/10'}`}>
+              <div
+                className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border backdrop-blur-sm transition-transform group-hover:scale-110 ${styles.border} ${isTopThree ? "bg-black/60" : "bg-white/10"}`}
+              >
                 {getRankIcon(position) || (
                   <span className={`text-2xl font-bold ${styles.text}`}>
                     {position}
@@ -268,7 +120,6 @@ export function RankingList({ players }: RankingListProps) {
                 )}
               </div>
 
-              {/* Player Photo */}
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-white/20 shadow-lg transition-transform group-hover:scale-110">
                 {player.photoUrl ? (
                   <Image
@@ -284,75 +135,60 @@ export function RankingList({ players }: RankingListProps) {
                 )}
               </div>
 
-              {/* Player Info */}
               <div className="flex flex-1 items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
+                <div className="flex min-w-0 flex-col gap-1">
                   <h3 className="font-display text-2xl font-bold tracking-tight text-white">
                     {player.name}
                   </h3>
-                  <span className="text-sm text-white/50">
-                    Clique para ver detalhes
-                  </span>
+                  {getPlayerSoloRankLabel(player) ? (
+                    <span className="text-xs text-primary/90">
+                      {getPlayerSoloRankLabel(player)}
+                    </span>
+                  ) : getPlayerRiotIdLabel(player) ? (
+                    <span className="truncate text-xs text-white/45">
+                      {getPlayerRiotIdLabel(player)}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-white/50">
+                      Ver perfil completo
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-4xl font-bold ${isTopThree ? styles.text : 'text-white'}`}>
+                    <span
+                      className={`text-4xl font-bold ${isTopThree ? styles.text : "text-white"}`}
+                    >
                       {player.score}
                     </span>
                     <span className="text-sm text-white/50">PDLs</span>
                   </div>
-                  {isTopThree && (
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${styles.text}`}>
+                  {isTopThree ? (
+                    <span
+                      className={`text-xs font-semibold uppercase tracking-wider ${styles.text}`}
+                    >
                       Top {position}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
-
-              {/* Hover Arrow */}
-              <div className="absolute right-6 opacity-0 transition-opacity group-hover:opacity-100">
-                <svg
-                  className="h-6 w-6 text-white/50"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
-            </motion.div>
-          );
-        })}
-
-        {players.length === 0 && (
-          <motion.div
-            variants={itemVariants}
-            className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-12 text-center"
-          >
-            <Trophy className="h-16 w-16 text-white/20" />
-            <p className="text-lg text-white/50">
-              Nenhum jogador cadastrado ainda.
-            </p>
+            </Link>
           </motion.div>
-        )}
-      </motion.div>
+        );
+      })}
 
-      <AnimatePresence>
-        {selectedPlayer && (
-          <PlayerCardModal
-            player={selectedPlayer.player}
-            position={selectedPlayer.position}
-            onClose={() => setSelectedPlayer(null)}
-          />
-        )}
-      </AnimatePresence>
-    </>
+      {players.length === 0 ? (
+        <motion.div
+          variants={itemVariants}
+          className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-12 text-center"
+        >
+          <Trophy className="h-16 w-16 text-white/20" />
+          <p className="text-lg text-white/50">
+            Nenhum jogador cadastrado ainda.
+          </p>
+        </motion.div>
+      ) : null}
+    </motion.div>
   );
 }
-

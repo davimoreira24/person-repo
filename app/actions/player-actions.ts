@@ -28,11 +28,35 @@ import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
 import {
   applyMatchCompletionScores,
 } from "@/lib/match/apply-match-scores";
+import {
+  fetchRiotPlayerSnapshot,
+  parseRiotIdInput,
+  type RiotPlayerSnapshot,
+} from "@/lib/riot/client";
 
 const createPlayerSchema = z.object({
   name: z.string().min(2, "O nome precisa de pelo menos 2 caracteres"),
   score: z.coerce.number().min(0).default(0),
+  /** Riot ID completo: Nome#TAG */
+  riotId: z.string().min(5, "Informe o Riot ID (Nome#TAG)"),
 });
+
+function riotSnapshotToColumns(snapshot: RiotPlayerSnapshot) {
+  return {
+    riotGameName: snapshot.gameName,
+    riotTagLine: snapshot.tagLine,
+    riotPuuid: snapshot.puuid,
+    riotPlatform: snapshot.platform,
+    riotRegion: snapshot.region,
+    riotSoloTier: snapshot.soloTier,
+    riotSoloRank: snapshot.soloRank,
+    riotSoloLp: snapshot.soloLp,
+    riotSoloWins: snapshot.soloWins,
+    riotSoloLosses: snapshot.soloLosses,
+    riotTopChampions: snapshot.topChampions,
+    riotStatsSyncedAt: new Date(),
+  };
+}
 
 const updateScoreSchema = z.object({
   playerId: z.number().int().positive(),
@@ -87,10 +111,26 @@ export async function createPlayerAction(formData: FormData) {
   const parsed = createPlayerSchema.safeParse({
     name: formData.get("name"),
     score: formData.get("score") ?? "0",
+    riotId: formData.get("riotId"),
   });
 
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+  }
+
+  const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+  const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
+
+  const existing = await db
+    .select({ id: players.id, name: players.name })
+    .from(players)
+    .where(eq(players.riotPuuid, riotSnapshot.puuid))
+    .limit(1);
+
+  if (existing[0]) {
+    throw new Error(
+      `Essa conta Riot já está ligada ao jogador "${existing[0].name}".`,
+    );
   }
 
   let photoUrl: string | null = null;
@@ -128,10 +168,91 @@ export async function createPlayerAction(formData: FormData) {
     name: parsed.data.name,
     score: parsed.data.score,
     photoUrl,
+    ...riotSnapshotToColumns(riotSnapshot),
   });
 
   revalidatePath("/players");
   revalidatePath("/ranking");
+  revalidatePath(`/jogador/${nextId ?? 1}`);
+}
+
+const linkRiotSchema = z.object({
+  playerId: z.number().int().positive(),
+  riotId: z.string().min(5, "Informe o Riot ID (Nome#TAG)"),
+});
+
+/** Liga / atualiza Riot ID de um jogador já cadastrado e sincroniza elo/mastery. */
+export async function linkPlayerRiotIdAction(input: unknown) {
+  const parsed = linkRiotSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+  }
+
+  const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+  const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
+
+  const conflict = await db
+    .select({ id: players.id, name: players.name })
+    .from(players)
+    .where(eq(players.riotPuuid, riotSnapshot.puuid))
+    .limit(1);
+
+  if (conflict[0] && conflict[0].id !== parsed.data.playerId) {
+    throw new Error(
+      `Essa conta Riot já está ligada ao jogador "${conflict[0].name}".`,
+    );
+  }
+
+  await db
+    .update(players)
+    .set(riotSnapshotToColumns(riotSnapshot))
+    .where(eq(players.id, parsed.data.playerId));
+
+  revalidatePath("/players");
+  revalidatePath("/ranking");
+  revalidatePath(`/jogador/${parsed.data.playerId}`);
+
+  return { ok: true as const };
+}
+
+/** Rebusca elo + top champs na Riot (jogador já com puuid ou Riot ID). */
+export async function refreshPlayerRiotStatsAction(playerId: number) {
+  const [row] = await db
+    .select({
+      id: players.id,
+      riotGameName: players.riotGameName,
+      riotTagLine: players.riotTagLine,
+      riotPlatform: players.riotPlatform,
+      riotRegion: players.riotRegion,
+    })
+    .from(players)
+    .where(eq(players.id, playerId))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Jogador não encontrado.");
+  }
+  if (!row.riotGameName || !row.riotTagLine) {
+    throw new Error("Jogador ainda não tem Riot ID. Vincule Nome#TAG primeiro.");
+  }
+
+  const riotSnapshot = await fetchRiotPlayerSnapshot({
+    gameName: row.riotGameName,
+    tagLine: row.riotTagLine,
+    platform: row.riotPlatform ?? undefined,
+    region: row.riotRegion ?? undefined,
+  });
+
+  await db
+    .update(players)
+    .set(riotSnapshotToColumns(riotSnapshot))
+    .where(eq(players.id, playerId));
+
+  revalidatePath("/players");
+  revalidatePath("/ranking");
+  revalidatePath(`/jogador/${playerId}`);
+
+  return { ok: true as const };
 }
 
 export async function updatePlayerScoreAction(input: unknown) {

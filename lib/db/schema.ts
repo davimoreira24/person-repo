@@ -2,6 +2,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -19,12 +20,40 @@ export const players = pgTable(
     name: varchar("name", { length: 80 }).notNull(),
     photoUrl: text("photo_url"),
     score: integer("score").default(0).notNull(),
+    /** Riot ID — game name (antes do #). */
+    riotGameName: varchar("riot_game_name", { length: 80 }),
+    /** Riot ID — tag line (depois do #). */
+    riotTagLine: varchar("riot_tag_line", { length: 16 }),
+    riotPuuid: varchar("riot_puuid", { length: 128 }),
+    /** Plataforma do summoner (ex.: br1). */
+    riotPlatform: varchar("riot_platform", { length: 16 }).default("br1"),
+    /** Cluster regional Match/Account (ex.: americas). */
+    riotRegion: varchar("riot_region", { length: 16 }).default("americas"),
+    riotSoloTier: varchar("riot_solo_tier", { length: 24 }),
+    riotSoloRank: varchar("riot_solo_rank", { length: 8 }),
+    riotSoloLp: integer("riot_solo_lp"),
+    riotSoloWins: integer("riot_solo_wins"),
+    riotSoloLosses: integer("riot_solo_losses"),
+    /** Top masteries: [{ championId, name, level, points, icon }]. */
+    riotTopChampions: jsonb("riot_top_champions").$type<
+      Array<{
+        championId: number;
+        name: string;
+        level: number;
+        points: number;
+        icon: string | null;
+      }>
+    >(),
+    riotStatsSyncedAt: timestamp("riot_stats_synced_at", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => ({
     nameIdx: index("players_name_idx").on(table.name),
+    riotPuuidIdx: index("players_riot_puuid_idx").on(table.riotPuuid),
   }),
 );
 

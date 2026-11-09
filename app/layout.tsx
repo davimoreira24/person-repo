@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuroraBackground } from "@/components/background/aurora";
 import { ParticleField } from "@/components/background/particle-field";
 import { SeasonCountdown } from "@/components/season-countdown";
+import { RiotDisclaimer } from "@/components/riot-disclaimer";
 
 const geistSans = GeistSans;
 const geistMono = GeistMono;
@@ -35,6 +36,7 @@ export default function RootLayout({
           <ParticleField density={28} />
           <SeasonCountdown variant="banner" />
           <main className="relative z-10 flex-1">{children}</main>
+          <RiotDisclaimer />
         </div>
       </body>
     </html>

@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ElectricBorder } from "@/components/electric-border";
 import { PoopStreakBorder } from "@/components/poop-streak-border";
 import { cn } from "@/lib/utils";
 import type { MatchTeamPlayer, MatchWithTeams } from "@/lib/queries/players";
+import { MatchPlayerProfileModal } from "./match-player-profile-modal";
 
 /** Vitórias seguidas mínimas para ativar a borda elétrica (dourada). */
 const WIN_STREAK_FOR_ELECTRIC_BORDER = 3;
@@ -94,6 +96,7 @@ interface LolPlayerCardProps {
   team: 1 | 2;
   index: number;
   poopRoastWord?: string;
+  onOpenProfile: (player: MatchTeamPlayer) => void;
 }
 
 function LolPlayerCard({
@@ -101,6 +104,7 @@ function LolPlayerCard({
   team,
   index,
   poopRoastWord,
+  onOpenProfile,
 }: LolPlayerCardProps) {
   const isBlueSide = team === 1;
   const sideGradient = isBlueSide
@@ -248,14 +252,16 @@ function LolPlayerCard({
   );
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       layout
       custom={isBlueSide ? "top" : "bottom"}
       initial="hidden"
       animate="visible"
       variants={cardVariants}
       transition={{ delay: index * 0.06 }}
-      className="h-[280px] w-[168px] shrink-0"
+      className="h-[280px] w-[168px] shrink-0 text-left"
+      onClick={() => onOpenProfile(player)}
     >
       {electricBorder ? (
         <ElectricBorder
@@ -274,7 +280,7 @@ function LolPlayerCard({
       ) : (
         <div className={cardSurfaceClass}>{cardBody}</div>
       )}
-    </motion.div>
+    </motion.button>
   );
 }
 
@@ -288,6 +294,10 @@ export function TeamDisplay({
   match,
   poopRoastByPlayerId,
 }: TeamDisplayProps) {
+  const [selectedPlayer, setSelectedPlayer] = useState<MatchTeamPlayer | null>(
+    null,
+  );
+
   return (
     <div className="relative flex flex-col gap-8 rounded-3xl border border-white/10 bg-gradient-to-b from-[#04070F]/95 via-[#060A13]/92 to-[#090E18]/95 p-6">
       {match.selectedCard ? (
@@ -344,6 +354,7 @@ export function TeamDisplay({
               team={1}
               index={index}
               poopRoastWord={poopRoastByPlayerId[player.playerId]}
+              onOpenProfile={setSelectedPlayer}
             />
           ))}
         </div>
@@ -364,9 +375,15 @@ export function TeamDisplay({
               team={2}
               index={index}
               poopRoastWord={poopRoastByPlayerId[player.playerId]}
+              onOpenProfile={setSelectedPlayer}
             />
           ))}
         </div>
+
+        <MatchPlayerProfileModal
+          player={selectedPlayer}
+          onClose={() => setSelectedPlayer(null)}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-3 border-t border-white/10 pt-4 text-xs text-white/40">

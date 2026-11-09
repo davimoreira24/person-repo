@@ -16,6 +16,10 @@ const schema = z.object({
     .string()
     .min(2, "Informe pelo menos 2 caracteres")
     .max(60, "Máximo de 60 caracteres"),
+  riotId: z
+    .string()
+    .min(5, "Informe o Riot ID")
+    .refine((v) => v.includes("#"), "Use o formato Nome#TAG"),
   score: z.coerce.number().min(0, "Use valores positivos"),
   photo: z
     .custom<FileList | undefined>((value) => {
@@ -57,6 +61,7 @@ export function PlayerForm({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
+      riotId: "",
       score: 0,
     },
   });
@@ -86,6 +91,7 @@ export function PlayerForm({
     setError(null);
     const formData = new FormData();
     formData.append("name", data.name);
+    formData.append("riotId", data.riotId.trim());
     formData.append("score", String(data.score ?? 0));
     if (data.photo instanceof FileList && data.photo[0]) {
       formData.append("photo", data.photo[0]);
@@ -105,9 +111,10 @@ export function PlayerForm({
     });
   };
 
-  const containerClass = layout === "card"
-    ? "glass-panel sticky top-8 flex flex-col gap-6 p-6"
-    : "flex flex-col gap-6";
+  const containerClass =
+    layout === "card"
+      ? "glass-panel sticky top-8 flex flex-col gap-6 p-6"
+      : "flex flex-col gap-6";
 
   return (
     <div className={containerClass}>
@@ -119,14 +126,14 @@ export function PlayerForm({
           Adicione para a próxima partida
         </h2>
         <p className="text-sm text-white/60">
-          Faça upload de uma foto, defina uma pontuação inicial e mantenha o
-          registro da sua equipe sempre atualizado.
+          Nome na Person + Riot ID (Nome#TAG). Buscamos elo e champs na API da
+          Riot na hora do cadastro.
         </p>
       </header>
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="name">Nome</Label>
+          <Label htmlFor="name">Nome na Person</Label>
           <Input id="name" placeholder="Player G4nk" {...register("name")} />
           {errors.name && (
             <span className="text-xs text-red-300">{errors.name.message}</span>
@@ -134,7 +141,24 @@ export function PlayerForm({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="score">Pontuação inicial</Label>
+          <Label htmlFor="riotId">Riot ID</Label>
+          <Input
+            id="riotId"
+            placeholder="SeuNome#BR1"
+            autoComplete="off"
+            {...register("riotId")}
+          />
+          <span className="text-xs text-white/40">
+            Formato oficial: game name + tag (ex.: Hide on bush#KR1). Região
+            padrão: BR.
+          </span>
+          {errors.riotId && (
+            <span className="text-xs text-red-300">{errors.riotId.message}</span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="score">Pontuação inicial (PDL)</Label>
           <Input
             id="score"
             type="number"
@@ -155,8 +179,7 @@ export function PlayerForm({
             {...register("photo")}
           />
           <span className="text-xs text-white/40">
-            Use imagens quadradas para melhor resultado. Armazenamos no Supabase
-            Storage.
+            Use imagens quadradas. Armazenamos no Supabase Storage.
           </span>
           {previewUrl && (
             <div className="relative mt-2 h-32 w-full overflow-hidden rounded-2xl border border-white/10">
@@ -182,16 +205,15 @@ export function PlayerForm({
               Cancelar
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Adicionando..." : "Salvar jogador"}
+              {isPending ? "Buscando na Riot..." : "Salvar jogador"}
             </Button>
           </div>
         ) : (
           <Button type="submit" disabled={isPending}>
-            {isPending ? "Adicionando..." : "Salvar jogador"}
+            {isPending ? "Buscando na Riot..." : "Salvar jogador"}
           </Button>
         )}
       </form>
     </div>
   );
 }
-

@@ -167,6 +167,14 @@ export async function getCurrentWinAndLossStreakByPlayerIds(
   return { wins, losses };
 }
 
+export type MatchPlayerRiotChampion = {
+  championId: number;
+  name: string;
+  level: number;
+  points: number;
+  icon: string | null;
+};
+
 export type MatchTeamPlayer = {
   playerId: number;
   name: string;
@@ -181,6 +189,14 @@ export type MatchTeamPlayer = {
   bravura: boolean;
   /** Revelado só após encerrar a partida. */
   challengeActive: boolean;
+  riotGameName: string | null;
+  riotTagLine: string | null;
+  riotSoloTier: string | null;
+  riotSoloRank: string | null;
+  riotSoloLp: number | null;
+  riotSoloWins: number | null;
+  riotSoloLosses: number | null;
+  riotTopChampions: MatchPlayerRiotChampion[];
   /** Vitórias seguidas (partidas encerradas), mais recente primeiro. */
   winStreak: number;
   /** Derrotas seguidas (partidas encerradas), mais recente primeiro. */
@@ -241,6 +257,14 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       championName: matchPlayers.championName,
       bravura: matchPlayers.bravura,
       challengeActive: matchPlayers.challengeActive,
+      riotGameName: players.riotGameName,
+      riotTagLine: players.riotTagLine,
+      riotSoloTier: players.riotSoloTier,
+      riotSoloRank: players.riotSoloRank,
+      riotSoloLp: players.riotSoloLp,
+      riotSoloWins: players.riotSoloWins,
+      riotSoloLosses: players.riotSoloLosses,
+      riotTopChampions: players.riotTopChampions,
     })
     .from(matches)
     .leftJoin(gameCards, eq(matches.selectedGameCardId, gameCards.id))
@@ -309,6 +333,16 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       bravura: row.bravura === true,
       challengeActive:
         winnerTeam !== null ? row.challengeActive === true : false,
+      riotGameName: row.riotGameName ?? null,
+      riotTagLine: row.riotTagLine ?? null,
+      riotSoloTier: row.riotSoloTier ?? null,
+      riotSoloRank: row.riotSoloRank ?? null,
+      riotSoloLp: row.riotSoloLp ?? null,
+      riotSoloWins: row.riotSoloWins ?? null,
+      riotSoloLosses: row.riotSoloLosses ?? null,
+      riotTopChampions: Array.isArray(row.riotTopChampions)
+        ? row.riotTopChampions
+        : [],
       winStreak: 0,
       lossStreak: 0,
     });
