@@ -186,6 +186,9 @@ export type MatchTeamPlayer = {
   isDud: boolean;
   championKey: string | null;
   championName: string | null;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
   bravura: boolean;
   /** Revelado só após encerrar a partida. */
   challengeActive: boolean;
@@ -220,6 +223,8 @@ export interface MatchWithTeams {
   /** Regra "Campeões aleatórios" (nova). Se for partida legada `random_champions`, vem true também. */
   championsRandom: boolean;
   loadoutCompletedAt: Date | null;
+  roflImportedAt: Date | null;
+  gameLengthMs: number | null;
   /** Cartinha sorteada para esta partida (se a lobby tinha “cartas ativas”). */
   selectedCard: MatchSelectedCard | null;
   awards: {
@@ -242,6 +247,8 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       gameMode: matches.gameMode,
       championsRandom: matches.championsRandom,
       loadoutCompletedAt: matches.loadoutCompletedAt,
+      roflImportedAt: matches.roflImportedAt,
+      gameLengthMs: matches.gameLengthMs,
       selectedGameCardId: matches.selectedGameCardId,
       cardSlug: gameCards.slug,
       cardTitle: gameCards.title,
@@ -255,6 +262,9 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       matchPlayerId: matchPlayers.id,
       championKey: matchPlayers.championKey,
       championName: matchPlayers.championName,
+      kills: matchPlayers.kills,
+      deaths: matchPlayers.deaths,
+      assists: matchPlayers.assists,
       bravura: matchPlayers.bravura,
       challengeActive: matchPlayers.challengeActive,
       riotGameName: players.riotGameName,
@@ -330,6 +340,9 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
       isDud: awardMap.dudPlayerId === playerId,
       championKey: row.championKey ?? null,
       championName: row.championName ?? null,
+      kills: row.kills ?? null,
+      deaths: row.deaths ?? null,
+      assists: row.assists ?? null,
       bravura: row.bravura === true,
       challengeActive:
         winnerTeam !== null ? row.challengeActive === true : false,
@@ -358,6 +371,8 @@ export async function getMatchById(matchId: number): Promise<MatchWithTeams | nu
     championsRandom:
       matchInfo.championsRandom === true || gameMode === "random_champions",
     loadoutCompletedAt: matchInfo.loadoutCompletedAt ?? null,
+    roflImportedAt: matchInfo.roflImportedAt ?? null,
+    gameLengthMs: matchInfo.gameLengthMs ?? null,
     selectedCard,
     awards: awardMap,
     teams,

@@ -100,6 +100,10 @@ export const matches = pgTable("matches", {
     () => gameCards.id,
     { onDelete: "set null" },
   ),
+  /** Quando a partida foi encerrada via import de .rofl. */
+  roflImportedAt: timestamp("rofl_imported_at", { withTimezone: true }),
+  /** Duração da partida em ms (vindo do replay). */
+  gameLengthMs: integer("game_length_ms"),
 });
 
 export const matchPlayers = pgTable(
@@ -115,6 +119,10 @@ export const matchPlayers = pgTable(
     team: integer("team").notNull(),
     championKey: varchar("champion_key", { length: 48 }),
     championName: varchar("champion_name", { length: 80 }),
+    /** KDA importado do .rofl (nullable = partida sem replay). */
+    kills: integer("kills"),
+    deaths: integer("deaths"),
+    assists: integer("assists"),
     /** Opt-in: campeão aleatório na rota + bônus de PDL se o time vencer. */
     bravura: boolean("bravura").default(false).notNull(),
     /** Desafio PDL: dobra ganho/perda do time (+50/−50). Revelado só ao encerrar. */

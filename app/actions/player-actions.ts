@@ -9,7 +9,7 @@ import {
   pickRandomChampionsForMatch,
 } from "@/lib/lol/meraki-champions";
 import { playerBucket, supabaseAdmin } from "@/lib/supabase/server";
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   MATCH_GAME_CLASSIC,
   MATCH_GAME_DRAFT,
@@ -92,11 +92,24 @@ const createDraftMatchInputSchema = z.object({
   championsRandom: z.boolean().optional(),
 });
 
+const completeMatchPlayerStatSchema = z.object({
+  playerId: z.number().int().positive(),
+  kills: z.number().int().min(0),
+  deaths: z.number().int().min(0),
+  assists: z.number().int().min(0),
+  championKey: z.string().max(48).nullable().optional(),
+  championName: z.string().max(80).nullable().optional(),
+});
+
 const completeMatchSchema = z.object({
   matchId: z.number().int().positive(),
   winnerTeam: z.union([z.literal(1), z.literal(2)]),
   mvpPlayerId: z.number().int().positive(),
   dudPlayerId: z.number().int().positive(),
+  /** true quando veio de import .rofl */
+  roflImported: z.boolean().optional(),
+  gameLengthMs: z.number().int().positive().nullable().optional(),
+  playerStats: z.array(completeMatchPlayerStatSchema).max(10).optional(),
 });
 
 const replayMatchInputSchema = z.object({
@@ -511,10 +524,25 @@ export async function completeMatchAction(input: unknown) {
     throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
   }
 
-  const { matchId, winnerTeam, mvpPlayerId, dudPlayerId } = parsed.data;
+  const {
+    matchId,
+    winnerTeam,
+    mvpPlayerId,
+    dudPlayerId,
+    roflImported,
+    gameLengthMs,
+    playerStats,
+  } = parsed.data;
 
   if (mvpPlayerId === dudPlayerId) {
     throw new Error("O MVP e o pior jogador não podem ser a mesma pessoa.");
+  }
+
+  if (playerStats && playerStats.length > 0) {
+    const ids = new Set(playerStats.map((s) => s.playerId));
+    if (ids.size !== playerStats.length) {
+      throw new Error("Stats do replay têm jogadores duplicados.");
+    }
   }
 
   const matchRecord = await db
@@ -579,8 +607,44 @@ export async function completeMatchAction(input: unknown) {
       .set({
         winnerTeam,
         completedAt: new Date(),
+        ...(roflImported
+          ? {
+              roflImportedAt: new Date(),
+              gameLengthMs: gameLengthMs ?? null,
+            }
+          : {}),
       })
       .where(eq(matches.id, matchId));
+
+    if (playerStats && playerStats.length > 0) {
+      const rosterIds = new Set(matchPlayersRows.map((r) => r.playerId));
+      for (const stat of playerStats) {
+        if (!rosterIds.has(stat.playerId)) {
+          throw new Error(
+            `Stats do replay referem jogador fora da partida (#${stat.playerId}).`,
+          );
+        }
+        await tx
+          .update(matchPlayers)
+          .set({
+            kills: stat.kills,
+            deaths: stat.deaths,
+            assists: stat.assists,
+            ...(stat.championKey != null
+              ? { championKey: stat.championKey }
+              : {}),
+            ...(stat.championName != null
+              ? { championName: stat.championName }
+              : {}),
+          })
+          .where(
+            and(
+              eq(matchPlayers.matchId, matchId),
+              eq(matchPlayers.playerId, stat.playerId),
+            ),
+          );
+      }
+    }
 
     await tx.delete(matchAwards).where(eq(matchAwards.matchId, matchId));
     await tx.insert(matchAwards).values([

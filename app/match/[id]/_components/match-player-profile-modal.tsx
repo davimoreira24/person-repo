@@ -86,11 +86,15 @@ export function MatchPlayerProfileModal({
                 player.name.toLowerCase().replace(/\s+/g, "")
               }
               status={
-                wr != null
-                  ? `WR Solo ${wr}%`
-                  : riotId
-                    ? "Conta Riot vinculada"
-                    : "Sem Riot ID"
+                player.kills != null &&
+                player.deaths != null &&
+                player.assists != null
+                  ? `Partida ${player.kills}/${player.deaths}/${player.assists}`
+                  : wr != null
+                    ? `WR Solo ${wr}%`
+                    : riotId
+                      ? "Conta Riot vinculada"
+                      : "Sem Riot ID"
               }
               statusColor={wr != null && wr >= 50 ? "#22c55e" : "#E6C357"}
               masteries={champs.slice(0, 3).map((champ) => ({

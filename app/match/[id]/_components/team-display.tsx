@@ -237,6 +237,13 @@ function LolPlayerCard({
             {player.championName}
           </p>
         ) : null}
+        {player.kills != null &&
+        player.deaths != null &&
+        player.assists != null ? (
+          <p className="text-[11px] font-semibold tabular-nums text-white/85">
+            {player.kills}/{player.deaths}/{player.assists}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between text-[11px] text-white/70">
           <div className="flex flex-col leading-tight">
             <span className="text-[10px] uppercase tracking-[0.35em] text-white/40">

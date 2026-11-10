@@ -148,6 +148,14 @@ export default async function MatchPage({ params }: MatchPageProps) {
                 Campeões aleatórios
               </span>
             )}
+            {matchForView.roflImportedAt && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#E6C357]/40 bg-[#E6C357]/15 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#E6C357]">
+                Importado do replay
+                {matchForView.gameLengthMs
+                  ? ` · ${Math.round(matchForView.gameLengthMs / 60000)} min`
+                  : ""}
+              </span>
+            )}
           </div>
           {matchForView.championsRandom && (
             <p className="text-sm text-primary/90">
