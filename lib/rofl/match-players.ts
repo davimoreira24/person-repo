@@ -49,8 +49,23 @@ export function autoLinkRoflPlayers(
   }
 
   return roflPlayers.map((stats, roflIndex) => {
-    const hit = byRiotName.get(normalizeName(stats.NAME));
-    if (hit && !usedPlayerIds.has(hit.playerId)) {
+    const candidates = [
+      stats.RIOT_ID_GAME_NAME,
+      stats.NAME,
+    ]
+      .map(normalizeName)
+      .filter(Boolean);
+
+    let hit: MatchRosterPlayer | undefined;
+    for (const candidate of candidates) {
+      const found = byRiotName.get(candidate);
+      if (found && !usedPlayerIds.has(found.playerId)) {
+        hit = found;
+        break;
+      }
+    }
+
+    if (hit) {
       usedPlayerIds.add(hit.playerId);
       return {
         roflIndex,

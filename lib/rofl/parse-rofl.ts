@@ -18,20 +18,47 @@ function readU32LE(view: DataView, offset: number) {
 
 function asStatString(value: unknown): string {
   if (value == null) return "";
-  return String(value);
+  return String(value).trim();
+}
+
+function pickStat(
+  raw: Record<string, unknown>,
+  ...keys: string[]
+): string {
+  for (const key of keys) {
+    const value = asStatString(raw[key]);
+    if (value) return value;
+  }
+  // fallback case-insensitive (alguns dumps variam casing)
+  const lowerMap = new Map(
+    Object.entries(raw).map(([k, v]) => [k.toLowerCase(), v]),
+  );
+  for (const key of keys) {
+    const value = asStatString(lowerMap.get(key.toLowerCase()));
+    if (value) return value;
+  }
+  return "";
 }
 
 function normalizePlayer(raw: Record<string, unknown>): RoflPlayerStats {
+  const riotGameName = pickStat(raw, "RIOT_ID_GAME_NAME");
+  const riotTagLine = pickStat(raw, "RIOT_ID_TAG_LINE");
+  // No ROFL2 o NAME costuma vir vazio; o nick real está em RIOT_ID_GAME_NAME.
+  const name = pickStat(raw, "NAME", "RIOT_ID_GAME_NAME");
+
   return {
-    NAME: asStatString(raw.NAME),
-    TEAM: asStatString(raw.TEAM),
-    WIN: asStatString(raw.WIN),
-    SKIN: asStatString(raw.SKIN),
-    CHAMPIONS_KILLED: asStatString(raw.CHAMPIONS_KILLED),
-    NUM_DEATHS: asStatString(raw.NUM_DEATHS),
-    ASSISTS: asStatString(raw.ASSISTS),
-    TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: asStatString(
-      raw.TOTAL_DAMAGE_DEALT_TO_CHAMPIONS,
+    NAME: name,
+    RIOT_ID_GAME_NAME: riotGameName || name,
+    RIOT_ID_TAG_LINE: riotTagLine,
+    TEAM: pickStat(raw, "TEAM"),
+    WIN: pickStat(raw, "WIN"),
+    SKIN: pickStat(raw, "SKIN"),
+    CHAMPIONS_KILLED: pickStat(raw, "CHAMPIONS_KILLED"),
+    NUM_DEATHS: pickStat(raw, "NUM_DEATHS"),
+    ASSISTS: pickStat(raw, "ASSISTS"),
+    TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: pickStat(
+      raw,
+      "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS",
     ),
   };
 }
@@ -49,6 +76,15 @@ function parseStatsJson(statsJson: unknown): RoflPlayerStats[] {
   return parsed.map((row) =>
     normalizePlayer((row ?? {}) as Record<string, unknown>),
   );
+}
+
+function getStatsJsonPayload(metadata: Record<string, unknown>): unknown {
+  if (metadata.statsJson != null) return metadata.statsJson;
+  if (metadata.statsjson != null) return metadata.statsjson;
+  const hit = Object.entries(metadata).find(
+    ([key]) => key.toLowerCase() === "statsjson",
+  );
+  return hit?.[1];
 }
 
 function parseLegacyMetadata(buffer: ArrayBuffer): {
@@ -127,7 +163,7 @@ export async function parseRoflFile(file: Blob): Promise<ParsedRofl> {
     throw new Error("Arquivo não parece um replay .rofl da Riot.");
   }
 
-  const players = parseStatsJson(metadata.statsJson);
+  const players = parseStatsJson(getStatsJsonPayload(metadata));
   const gameLengthRaw = metadata.gameLength;
   const gameLengthMs =
     typeof gameLengthRaw === "number"

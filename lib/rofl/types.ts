@@ -1,6 +1,10 @@
 /** Campos usados do statsJson dentro do .rofl */
 export type RoflPlayerStats = {
+  /** Nome para exibição (NAME legado ou RIOT_ID_GAME_NAME). */
   NAME: string;
+  /** Riot ID game name (campo atual do ROFL2). */
+  RIOT_ID_GAME_NAME: string;
+  RIOT_ID_TAG_LINE: string;
   TEAM: string;
   WIN: string;
   SKIN: string;

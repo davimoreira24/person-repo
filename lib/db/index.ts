@@ -15,10 +15,14 @@ if (!connectionString) {
   );
 }
 
+const isLocalDb =
+  /@(localhost|127\.0\.0\.1)(:|\/)/i.test(connectionString) ||
+  process.env.DATABASE_SSL === "disable";
+
 const client =
   global.__postgresClient ??
   postgres(connectionString, {
-    ssl: "require",
+    ssl: isLocalDb ? false : "require",
   });
 
 if (process.env.NODE_ENV !== "production") {
@@ -26,4 +30,3 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export const db = drizzle(client, { schema });
-

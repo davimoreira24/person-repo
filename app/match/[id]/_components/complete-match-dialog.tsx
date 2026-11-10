@@ -556,7 +556,12 @@ export function CompleteMatchDialog({ match }: CompleteMatchDialogProps) {
                           >
                             <div className="min-w-0">
                               <p className="truncate font-medium text-white">
-                                {link.stats.NAME || "(sem nome)"}
+                                {link.stats.RIOT_ID_GAME_NAME ||
+                                  link.stats.NAME ||
+                                  "(sem nome)"}
+                                {link.stats.RIOT_ID_TAG_LINE
+                                  ? `#${link.stats.RIOT_ID_TAG_LINE}`
+                                  : ""}
                               </p>
                               <p className="text-xs text-white/45">
                                 {link.stats.SKIN || "?"} ·{" "}
