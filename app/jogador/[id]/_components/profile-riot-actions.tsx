@@ -28,39 +28,29 @@ export function ProfileRiotActions({
   const handleLink = () => {
     setError(null);
     startTransition(async () => {
-      try {
-        const result = await linkPlayerRiotIdAction({
-          playerId,
-          riotId: riotIdInput.trim(),
-        });
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-        setShowLink(false);
-        setRiotIdInput("");
-        router.refresh();
-      } catch {
-        setError(
-          "Falha ao vincular Riot ID. Confira RIOT_API_KEY na Vercel e o SQL supabase-riot-players.sql.",
-        );
+      const result = await linkPlayerRiotIdAction({
+        playerId,
+        riotId: riotIdInput.trim(),
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
+      setShowLink(false);
+      setRiotIdInput("");
+      router.refresh();
     });
   };
 
   const handleRefresh = () => {
     setError(null);
     startTransition(async () => {
-      try {
-        const result = await refreshPlayerRiotStatsAction(playerId);
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-        router.refresh();
-      } catch {
-        setError("Falha ao atualizar stats Riot.");
+      const result = await refreshPlayerRiotStatsAction(playerId);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
+      router.refresh();
     });
   };
 

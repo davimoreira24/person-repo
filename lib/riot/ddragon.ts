@@ -12,6 +12,11 @@ type ChampionJson = {
   >;
 };
 
+export type ChampionMeta = {
+  name: string;
+  icon: string;
+};
+
 async function fetchLatestVersion(): Promise<string> {
   const res = await fetch("https://ddragon.leagueoflegends.com/api/versions.json", {
     next: { revalidate: 86_400 },
@@ -27,9 +32,11 @@ async function fetchLatestVersion(): Promise<string> {
   return latest;
 }
 
-async function fetchChampionIdMap(): Promise<
-  Map<number, { name: string; icon: string }>
-> {
+/**
+ * Retorna Record serializável — `unstable_cache` JSON-ifica o resultado e
+ * um `Map` vira objeto plano (daí o `.get is not a function` em produção).
+ */
+async function fetchChampionIdRecord(): Promise<Record<string, ChampionMeta>> {
   const version = await fetchLatestVersion();
   const res = await fetch(
     `https://ddragon.leagueoflegends.com/cdn/${version}/data/pt_BR/champion.json`,
@@ -39,19 +46,29 @@ async function fetchChampionIdMap(): Promise<
     throw new Error("Não foi possível carregar campeões do Data Dragon.");
   }
   const json = (await res.json()) as ChampionJson;
-  const map = new Map<number, { name: string; icon: string }>();
+  const record: Record<string, ChampionMeta> = {};
   for (const champ of Object.values(json.data)) {
-    const id = Number(champ.key);
-    map.set(id, {
+    record[String(Number(champ.key))] = {
       name: champ.name,
       icon: `https://ddragon.leagueoflegends.com/cdn/${version}/img/champion/${champ.image.full}`,
-    });
+    };
+  }
+  return record;
+}
+
+const getChampionIdRecord = unstable_cache(
+  fetchChampionIdRecord,
+  ["ddragon-champion-id-record-ptbr"],
+  { revalidate: 86_400 },
+);
+
+export async function getChampionIdMap(): Promise<
+  Map<number, ChampionMeta>
+> {
+  const record = await getChampionIdRecord();
+  const map = new Map<number, ChampionMeta>();
+  for (const [id, meta] of Object.entries(record)) {
+    map.set(Number(id), meta);
   }
   return map;
 }
-
-export const getChampionIdMap = unstable_cache(
-  fetchChampionIdMap,
-  ["ddragon-champion-id-map-ptbr"],
-  { revalidate: 86_400 },
-);

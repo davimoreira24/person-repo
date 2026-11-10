@@ -25,9 +25,7 @@ import {
   type CardRevealPayload,
 } from "@/lib/queries/game-cards";
 import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
-import {
-  applyMatchCompletionScores,
-} from "@/lib/match/apply-match-scores";
+import { applyMatchCompletionScores } from "@/lib/match/apply-match-scores";
 import {
   fetchRiotPlayerSnapshot,
   parseRiotIdInput,
@@ -68,7 +66,10 @@ const createMatchInputSchema = z.object({
   playerIds: z
     .array(z.number().int().positive())
     .length(10)
-    .refine((ids) => new Set(ids).size === 10, "Dez jogadores distintos são obrigatórios."),
+    .refine(
+      (ids) => new Set(ids).size === 10,
+      "Dez jogadores distintos são obrigatórios.",
+    ),
   balanceTeams: z.boolean().optional(),
   improvedLanes: z.boolean().optional(),
   /** Sorteia uma cartinha de regra (tabela `game_cards`). */
@@ -80,7 +81,10 @@ const createMatchInputSchema = z.object({
 const teamFiveSchema = z
   .array(z.number().int().positive())
   .length(5)
-  .refine((ids) => new Set(ids).size === 5, "Cinco jogadores distintos por time.");
+  .refine(
+    (ids) => new Set(ids).size === 5,
+    "Cinco jogadores distintos por time.",
+  );
 
 const createDraftMatchInputSchema = z.object({
   teamOneIds: teamFiveSchema,
@@ -120,105 +124,83 @@ const replayMatchInputSchema = z.object({
   championsRandom: z.boolean().optional(),
 });
 
-export type RiotActionResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export async function createPlayerAction(formData: FormData) {
+  const parsed = createPlayerSchema.safeParse({
+    name: formData.get("name"),
+    score: formData.get("score") ?? "0",
+    riotId: formData.get("riotId"),
+  });
 
-function riotActionError(error: unknown, fallback: string): RiotActionResult {
-  const message =
-    error instanceof Error && error.message
-      ? error.message
-      : fallback;
-  console.error("[riot-action]", message, error);
-  return { ok: false, error: message };
-}
-
-export async function createPlayerAction(
-  formData: FormData,
-): Promise<RiotActionResult> {
-  try {
-    const parsed = createPlayerSchema.safeParse({
-      name: formData.get("name"),
-      score: formData.get("score") ?? "0",
-      riotId: formData.get("riotId"),
-    });
-
-    if (!parsed.success) {
-      return {
-        ok: false,
-        error: parsed.error.issues[0]?.message ?? "Dados inválidos",
-      };
-    }
-
-    const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
-    const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
-
-    const existing = await db
-      .select({ id: players.id, name: players.name })
-      .from(players)
-      .where(eq(players.riotPuuid, riotSnapshot.puuid))
-      .limit(1);
-
-    if (existing[0]) {
-      return {
-        ok: false,
-        error: `Essa conta Riot já está ligada ao jogador "${existing[0].name}".`,
-      };
-    }
-
-    let photoUrl: string | null = null;
-    const file = formData.get("photo");
-
-    if (file && file instanceof File && file.size > 0) {
-      const extension = file.name.split(".").pop() ?? "png";
-      const filePath = `players/${crypto.randomUUID()}.${extension}`;
-      const { error } = await supabaseAdmin.storage
-        .from(playerBucket)
-        .upload(filePath, await file.arrayBuffer(), {
-          upsert: true,
-          contentType: file.type || "image/png",
-        });
-
-      if (error) {
-        return {
-          ok: false,
-          error: `Erro ao enviar a foto do jogador: ${error.message ?? "desconhecido"}`,
-        };
-      }
-
-      const { data: publicUrlData } = supabaseAdmin.storage
-        .from(playerBucket)
-        .getPublicUrl(filePath);
-
-      photoUrl = publicUrlData.publicUrl;
-    }
-
-    const [{ nextId }] = await db
-      .select({ nextId: sql<number>`COALESCE(MAX(${players.id}), 0) + 1` })
-      .from(players);
-
-    await db.insert(players).values({
-      id: nextId ?? 1,
-      name: parsed.data.name,
-      score: parsed.data.score,
-      photoUrl,
-      ...riotSnapshotToColumns(riotSnapshot),
-    });
-
-    revalidatePath("/players");
-    revalidatePath("/ranking");
-    revalidatePath(`/jogador/${nextId ?? 1}`);
-
-    return { ok: true };
-  } catch (error) {
-    return riotActionError(error, "Erro ao criar jogador.");
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
   }
+
+  const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+  const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
+
+  const existing = await db
+    .select({ id: players.id, name: players.name })
+    .from(players)
+    .where(eq(players.riotPuuid, riotSnapshot.puuid))
+    .limit(1);
+
+  if (existing[0]) {
+    throw new Error(
+      `Essa conta Riot já está ligada ao jogador "${existing[0].name}".`,
+    );
+  }
+
+  let photoUrl: string | null = null;
+  const file = formData.get("photo");
+
+  if (file && file instanceof File && file.size > 0) {
+    const extension = file.name.split(".").pop() ?? "png";
+    const filePath = `players/${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabaseAdmin.storage
+      .from(playerBucket)
+      .upload(filePath, await file.arrayBuffer(), {
+        upsert: true,
+        contentType: file.type || "image/png",
+      });
+
+    if (error) {
+      throw new Error(
+        `Erro ao enviar a foto do jogador: ${error.message ?? "desconhecido"}`,
+      );
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from(playerBucket)
+      .getPublicUrl(filePath);
+
+    photoUrl = publicUrlData.publicUrl;
+  }
+
+  const [{ nextId }] = await db
+    .select({ nextId: sql<number>`COALESCE(MAX(${players.id}), 0) + 1` })
+    .from(players);
+
+  await db.insert(players).values({
+    id: nextId ?? 1,
+    name: parsed.data.name,
+    score: parsed.data.score,
+    photoUrl,
+    ...riotSnapshotToColumns(riotSnapshot),
+  });
+
+  revalidatePath("/players");
+  revalidatePath("/ranking");
+  revalidatePath(`/jogador/${nextId ?? 1}`);
 }
 
 const linkRiotSchema = z.object({
   playerId: z.number().int().positive(),
   riotId: z.string().min(5, "Informe o Riot ID (Nome#TAG)"),
 });
+
+type RiotActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
 /** Liga / atualiza Riot ID de um jogador já cadastrado e sincroniza elo/mastery. */
 export async function linkPlayerRiotIdAction(
@@ -233,7 +215,18 @@ export async function linkPlayerRiotIdAction(
       };
     }
 
-    const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+    let gameName: string;
+    let tagLine: string;
+    try {
+      ({ gameName, tagLine } = parseRiotIdInput(parsed.data.riotId));
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          err instanceof Error ? err.message : "Riot ID inválido. Use Nome#TAG.",
+      };
+    }
+
     const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
 
     const conflict = await db
@@ -259,8 +252,14 @@ export async function linkPlayerRiotIdAction(
     revalidatePath(`/jogador/${parsed.data.playerId}`);
 
     return { ok: true };
-  } catch (error) {
-    return riotActionError(error, "Falha ao vincular Riot ID.");
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Falha ao vincular Riot ID. Tente de novo.",
+    };
   }
 }
 
@@ -308,8 +307,14 @@ export async function refreshPlayerRiotStatsAction(
     revalidatePath(`/jogador/${playerId}`);
 
     return { ok: true };
-  } catch (error) {
-    return riotActionError(error, "Falha ao atualizar stats Riot.");
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Falha ao atualizar stats. Tente de novo.",
+    };
   }
 }
 
@@ -351,7 +356,9 @@ async function buildShuffledTeams(
       .where(inArray(players.id, playerIds));
 
     if (scoreRows.length !== 10) {
-      throw new Error("Não foi possível carregar as pontuações dos 10 jogadores.");
+      throw new Error(
+        "Não foi possível carregar as pontuações dos 10 jogadores.",
+      );
     }
 
     const scoreMap = new Map(scoreRows.map((r) => [r.id, r.score]));
@@ -434,9 +441,7 @@ export async function createMatchAction(input: unknown) {
     playerId,
     team: index < 5 ? 1 : 2,
     championKey: championAssignments ? championAssignments[index]!.key : null,
-    championName: championAssignments
-      ? championAssignments[index]!.name
-      : null,
+    championName: championAssignments ? championAssignments[index]!.name : null,
   }));
 
   await db.insert(matchPlayers).values(entries);
@@ -474,16 +479,13 @@ export async function createDraftMatchAction(input: unknown) {
     throw new Error(parsed.error.issues[0]?.message ?? "Draft inválido");
   }
 
-  const {
-    teamOneIds,
-    teamTwoIds,
-    captainOneId,
-    captainTwoId,
-  } = parsed.data;
+  const { teamOneIds, teamTwoIds, captainOneId, captainTwoId } = parsed.data;
 
   const allIds = [...teamOneIds, ...teamTwoIds];
   if (new Set(allIds).size !== 10) {
-    throw new Error("Os 10 jogadores precisam ser distintos entre os dois times.");
+    throw new Error(
+      "Os 10 jogadores precisam ser distintos entre os dois times.",
+    );
   }
   if (!teamOneIds.includes(captainOneId)) {
     throw new Error("Capitão 1 precisa estar no time 1.");
@@ -540,9 +542,7 @@ export async function createDraftMatchAction(input: unknown) {
     playerId,
     team: index < 5 ? 1 : 2,
     championKey: championAssignments ? championAssignments[index]!.key : null,
-    championName: championAssignments
-      ? championAssignments[index]!.name
-      : null,
+    championName: championAssignments ? championAssignments[index]!.name : null,
   }));
 
   await db.insert(matchPlayers).values(entries);
@@ -740,7 +740,9 @@ export async function replayMatchAction(input: unknown) {
   const parsed = replayMatchInputSchema.safeParse(input);
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos para re-jogar.");
+    throw new Error(
+      parsed.error.issues[0]?.message ?? "Dados inválidos para re-jogar.",
+    );
   }
 
   const { matchId } = parsed.data;
@@ -801,7 +803,11 @@ export async function replayMatchAction(input: unknown) {
         "Neste fim de semana o clássico só roda com 'Campeões aleatórios'. Ligue a regra em Condições.",
       );
     }
-    const built = await buildShuffledTeams(playerIds, balanceTeams, improvedLanes);
+    const built = await buildShuffledTeams(
+      playerIds,
+      balanceTeams,
+      improvedLanes,
+    );
     teamOneOrdered = built.teamOneShuffled;
     teamTwoOrdered = built.teamTwoShuffled;
   }
@@ -838,9 +844,7 @@ export async function replayMatchAction(input: unknown) {
     playerId,
     team: index < 5 ? 1 : 2,
     championKey: championAssignments ? championAssignments[index]!.key : null,
-    championName: championAssignments
-      ? championAssignments[index]!.name
-      : null,
+    championName: championAssignments ? championAssignments[index]!.name : null,
   }));
 
   await db.insert(matchPlayers).values(entries);
