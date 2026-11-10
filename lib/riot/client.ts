@@ -128,7 +128,16 @@ export function soloWinrate(wins: number | null, losses: number | null): number 
   return Math.round((wins / total) * 1000) / 10;
 }
 
-/** Busca conta + elo Solo/Duo + top masteries. */
+async function softFetch<T>(label: string, url: string): Promise<T | null> {
+  try {
+    return await riotFetch<T>(url);
+  } catch (error) {
+    console.error(`[riot] ${label} falhou:`, error);
+    return null;
+  }
+}
+
+/** Busca conta + elo Solo/Duo + top masteries. Conta é obrigatória; resto é best-effort. */
 export async function fetchRiotPlayerSnapshot(input: {
   gameName: string;
   tagLine: string;
@@ -145,19 +154,24 @@ export async function fetchRiotPlayerSnapshot(input: {
   );
 
   const [entries, masteries, champMap] = await Promise.all([
-    riotFetch<LeagueEntryDto[]>(
+    softFetch<LeagueEntryDto[]>(
+      "league-v4",
       `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${account.puuid}`,
     ),
-    riotFetch<MasteryDto[]>(
+    softFetch<MasteryDto[]>(
+      "champion-mastery-v4",
       `https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${account.puuid}/top?count=5`,
     ),
-    getChampionIdMap(),
+    getChampionIdMap().catch((error) => {
+      console.error("[riot] ddragon falhou:", error);
+      return new Map<number, { name: string; icon: string }>();
+    }),
   ]);
 
   const solo =
-    entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
+    entries?.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
 
-  const topChampions: RiotTopChampion[] = masteries.map((m) => {
+  const topChampions: RiotTopChampion[] = (masteries ?? []).map((m) => {
     const meta = champMap.get(m.championId);
     return {
       championId: m.championId,

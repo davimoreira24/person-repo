@@ -99,13 +99,17 @@ export function PlayerForm({
 
     startTransition(async () => {
       try {
-        await createPlayerAction(formData);
+        const result = await createPlayerAction(formData);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         reset();
         router.refresh();
         onSuccess?.();
-      } catch (err) {
+      } catch {
         setError(
-          err instanceof Error ? err.message : "Erro ao criar jogador.",
+          "Erro ao criar jogador. Confira RIOT_API_KEY e o SQL supabase-riot-players.sql.",
         );
       }
     });

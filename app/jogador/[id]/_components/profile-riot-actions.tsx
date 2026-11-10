@@ -29,16 +29,20 @@ export function ProfileRiotActions({
     setError(null);
     startTransition(async () => {
       try {
-        await linkPlayerRiotIdAction({
+        const result = await linkPlayerRiotIdAction({
           playerId,
           riotId: riotIdInput.trim(),
         });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         setShowLink(false);
         setRiotIdInput("");
         router.refresh();
-      } catch (err) {
+      } catch {
         setError(
-          err instanceof Error ? err.message : "Falha ao vincular Riot ID.",
+          "Falha ao vincular Riot ID. Confira RIOT_API_KEY na Vercel e o SQL supabase-riot-players.sql.",
         );
       }
     });
@@ -48,12 +52,14 @@ export function ProfileRiotActions({
     setError(null);
     startTransition(async () => {
       try {
-        await refreshPlayerRiotStatsAction(playerId);
+        const result = await refreshPlayerRiotStatsAction(playerId);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         router.refresh();
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Falha ao atualizar stats.",
-        );
+      } catch {
+        setError("Falha ao atualizar stats Riot.");
       }
     });
   };

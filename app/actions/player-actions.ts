@@ -120,73 +120,99 @@ const replayMatchInputSchema = z.object({
   championsRandom: z.boolean().optional(),
 });
 
-export async function createPlayerAction(formData: FormData) {
-  const parsed = createPlayerSchema.safeParse({
-    name: formData.get("name"),
-    score: formData.get("score") ?? "0",
-    riotId: formData.get("riotId"),
-  });
+export type RiotActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
-  }
+function riotActionError(error: unknown, fallback: string): RiotActionResult {
+  const message =
+    error instanceof Error && error.message
+      ? error.message
+      : fallback;
+  console.error("[riot-action]", message, error);
+  return { ok: false, error: message };
+}
 
-  const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
-  const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
+export async function createPlayerAction(
+  formData: FormData,
+): Promise<RiotActionResult> {
+  try {
+    const parsed = createPlayerSchema.safeParse({
+      name: formData.get("name"),
+      score: formData.get("score") ?? "0",
+      riotId: formData.get("riotId"),
+    });
 
-  const existing = await db
-    .select({ id: players.id, name: players.name })
-    .from(players)
-    .where(eq(players.riotPuuid, riotSnapshot.puuid))
-    .limit(1);
-
-  if (existing[0]) {
-    throw new Error(
-      `Essa conta Riot já está ligada ao jogador "${existing[0].name}".`,
-    );
-  }
-
-  let photoUrl: string | null = null;
-  const file = formData.get("photo");
-
-  if (file && file instanceof File && file.size > 0) {
-    const extension = file.name.split(".").pop() ?? "png";
-    const filePath = `players/${crypto.randomUUID()}.${extension}`;
-    const { error } = await supabaseAdmin.storage
-      .from(playerBucket)
-      .upload(filePath, await file.arrayBuffer(), {
-        upsert: true,
-        contentType: file.type || "image/png",
-      });
-
-    if (error) {
-      throw new Error(
-        `Erro ao enviar a foto do jogador: ${error.message ?? "desconhecido"}`
-      );
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+      };
     }
 
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from(playerBucket)
-      .getPublicUrl(filePath);
+    const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+    const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
 
-    photoUrl = publicUrlData.publicUrl;
+    const existing = await db
+      .select({ id: players.id, name: players.name })
+      .from(players)
+      .where(eq(players.riotPuuid, riotSnapshot.puuid))
+      .limit(1);
+
+    if (existing[0]) {
+      return {
+        ok: false,
+        error: `Essa conta Riot já está ligada ao jogador "${existing[0].name}".`,
+      };
+    }
+
+    let photoUrl: string | null = null;
+    const file = formData.get("photo");
+
+    if (file && file instanceof File && file.size > 0) {
+      const extension = file.name.split(".").pop() ?? "png";
+      const filePath = `players/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabaseAdmin.storage
+        .from(playerBucket)
+        .upload(filePath, await file.arrayBuffer(), {
+          upsert: true,
+          contentType: file.type || "image/png",
+        });
+
+      if (error) {
+        return {
+          ok: false,
+          error: `Erro ao enviar a foto do jogador: ${error.message ?? "desconhecido"}`,
+        };
+      }
+
+      const { data: publicUrlData } = supabaseAdmin.storage
+        .from(playerBucket)
+        .getPublicUrl(filePath);
+
+      photoUrl = publicUrlData.publicUrl;
+    }
+
+    const [{ nextId }] = await db
+      .select({ nextId: sql<number>`COALESCE(MAX(${players.id}), 0) + 1` })
+      .from(players);
+
+    await db.insert(players).values({
+      id: nextId ?? 1,
+      name: parsed.data.name,
+      score: parsed.data.score,
+      photoUrl,
+      ...riotSnapshotToColumns(riotSnapshot),
+    });
+
+    revalidatePath("/players");
+    revalidatePath("/ranking");
+    revalidatePath(`/jogador/${nextId ?? 1}`);
+
+    return { ok: true };
+  } catch (error) {
+    return riotActionError(error, "Erro ao criar jogador.");
   }
-
-  const [{ nextId }] = await db
-    .select({ nextId: sql<number>`COALESCE(MAX(${players.id}), 0) + 1` })
-    .from(players);
-
-  await db.insert(players).values({
-    id: nextId ?? 1,
-    name: parsed.data.name,
-    score: parsed.data.score,
-    photoUrl,
-    ...riotSnapshotToColumns(riotSnapshot),
-  });
-
-  revalidatePath("/players");
-  revalidatePath("/ranking");
-  revalidatePath(`/jogador/${nextId ?? 1}`);
 }
 
 const linkRiotSchema = z.object({
@@ -195,77 +221,96 @@ const linkRiotSchema = z.object({
 });
 
 /** Liga / atualiza Riot ID de um jogador já cadastrado e sincroniza elo/mastery. */
-export async function linkPlayerRiotIdAction(input: unknown) {
-  const parsed = linkRiotSchema.safeParse(input);
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? "Dados inválidos");
+export async function linkPlayerRiotIdAction(
+  input: unknown,
+): Promise<RiotActionResult> {
+  try {
+    const parsed = linkRiotSchema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+      };
+    }
+
+    const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
+    const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
+
+    const conflict = await db
+      .select({ id: players.id, name: players.name })
+      .from(players)
+      .where(eq(players.riotPuuid, riotSnapshot.puuid))
+      .limit(1);
+
+    if (conflict[0] && conflict[0].id !== parsed.data.playerId) {
+      return {
+        ok: false,
+        error: `Essa conta Riot já está ligada ao jogador "${conflict[0].name}".`,
+      };
+    }
+
+    await db
+      .update(players)
+      .set(riotSnapshotToColumns(riotSnapshot))
+      .where(eq(players.id, parsed.data.playerId));
+
+    revalidatePath("/players");
+    revalidatePath("/ranking");
+    revalidatePath(`/jogador/${parsed.data.playerId}`);
+
+    return { ok: true };
+  } catch (error) {
+    return riotActionError(error, "Falha ao vincular Riot ID.");
   }
-
-  const { gameName, tagLine } = parseRiotIdInput(parsed.data.riotId);
-  const riotSnapshot = await fetchRiotPlayerSnapshot({ gameName, tagLine });
-
-  const conflict = await db
-    .select({ id: players.id, name: players.name })
-    .from(players)
-    .where(eq(players.riotPuuid, riotSnapshot.puuid))
-    .limit(1);
-
-  if (conflict[0] && conflict[0].id !== parsed.data.playerId) {
-    throw new Error(
-      `Essa conta Riot já está ligada ao jogador "${conflict[0].name}".`,
-    );
-  }
-
-  await db
-    .update(players)
-    .set(riotSnapshotToColumns(riotSnapshot))
-    .where(eq(players.id, parsed.data.playerId));
-
-  revalidatePath("/players");
-  revalidatePath("/ranking");
-  revalidatePath(`/jogador/${parsed.data.playerId}`);
-
-  return { ok: true as const };
 }
 
 /** Rebusca elo + top champs na Riot (jogador já com puuid ou Riot ID). */
-export async function refreshPlayerRiotStatsAction(playerId: number) {
-  const [row] = await db
-    .select({
-      id: players.id,
-      riotGameName: players.riotGameName,
-      riotTagLine: players.riotTagLine,
-      riotPlatform: players.riotPlatform,
-      riotRegion: players.riotRegion,
-    })
-    .from(players)
-    .where(eq(players.id, playerId))
-    .limit(1);
+export async function refreshPlayerRiotStatsAction(
+  playerId: number,
+): Promise<RiotActionResult> {
+  try {
+    const [row] = await db
+      .select({
+        id: players.id,
+        riotGameName: players.riotGameName,
+        riotTagLine: players.riotTagLine,
+        riotPlatform: players.riotPlatform,
+        riotRegion: players.riotRegion,
+      })
+      .from(players)
+      .where(eq(players.id, playerId))
+      .limit(1);
 
-  if (!row) {
-    throw new Error("Jogador não encontrado.");
+    if (!row) {
+      return { ok: false, error: "Jogador não encontrado." };
+    }
+    if (!row.riotGameName || !row.riotTagLine) {
+      return {
+        ok: false,
+        error: "Jogador ainda não tem Riot ID. Vincule Nome#TAG primeiro.",
+      };
+    }
+
+    const riotSnapshot = await fetchRiotPlayerSnapshot({
+      gameName: row.riotGameName,
+      tagLine: row.riotTagLine,
+      platform: row.riotPlatform ?? undefined,
+      region: row.riotRegion ?? undefined,
+    });
+
+    await db
+      .update(players)
+      .set(riotSnapshotToColumns(riotSnapshot))
+      .where(eq(players.id, playerId));
+
+    revalidatePath("/players");
+    revalidatePath("/ranking");
+    revalidatePath(`/jogador/${playerId}`);
+
+    return { ok: true };
+  } catch (error) {
+    return riotActionError(error, "Falha ao atualizar stats Riot.");
   }
-  if (!row.riotGameName || !row.riotTagLine) {
-    throw new Error("Jogador ainda não tem Riot ID. Vincule Nome#TAG primeiro.");
-  }
-
-  const riotSnapshot = await fetchRiotPlayerSnapshot({
-    gameName: row.riotGameName,
-    tagLine: row.riotTagLine,
-    platform: row.riotPlatform ?? undefined,
-    region: row.riotRegion ?? undefined,
-  });
-
-  await db
-    .update(players)
-    .set(riotSnapshotToColumns(riotSnapshot))
-    .where(eq(players.id, playerId));
-
-  revalidatePath("/players");
-  revalidatePath("/ranking");
-  revalidatePath(`/jogador/${playerId}`);
-
-  return { ok: true as const };
 }
 
 export async function updatePlayerScoreAction(input: unknown) {
