@@ -26,6 +26,7 @@ import {
 } from "@/lib/queries/game-cards";
 import { isRandomOnlyLobbyPeriod } from "@/lib/random-only-lobby-window";
 import { applyMatchCompletionScores } from "@/lib/match/apply-match-scores";
+import { notifyMatchTeamsToDiscord } from "@/lib/discord/teams-message";
 import {
   fetchRiotPlayerSnapshot,
   parseRiotIdInput,
@@ -476,6 +477,8 @@ export async function createMatchAction(input: unknown) {
 
   await db.insert(matchPlayers).values(entries);
 
+  await notifyMatchTeamsToDiscord(match.id);
+
   revalidatePath(`/match/${match.id}`);
   if (championsRandom) {
     revalidatePath("/analytics/campeoes");
@@ -576,6 +579,8 @@ export async function createDraftMatchAction(input: unknown) {
   }));
 
   await db.insert(matchPlayers).values(entries);
+
+  await notifyMatchTeamsToDiscord(match.id);
 
   revalidatePath(`/match/${match.id}`);
   if (championsRandom) {
@@ -878,6 +883,8 @@ export async function replayMatchAction(input: unknown) {
   }));
 
   await db.insert(matchPlayers).values(entries);
+
+  await notifyMatchTeamsToDiscord(newMatch.id);
 
   revalidatePath(`/match/${newMatch.id}`);
   revalidatePath("/players");
